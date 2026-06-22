@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yugabytedb-mcp
+  labels:
+    app: yugabytedb-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: yugabytedb-mcp
+  template:
+    metadata:
+      labels:
+        app: yugabytedb-mcp
+    spec:
+      containers:
+        - name: yugabytedb-mcp
+          # Built locally from https://github.com/yugabyte/yugabytedb-mcp-server
+          # (the upstream repo does not publish images). Push to your
+          # IMAGE_REPO and update the tag here. See README step 8.
+          image: ${IMAGE_REPO}/yugabytedb-mcp:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --transport=http
+            - --stateless-http
+          ports:
+            - containerPort: 8000
+          env:
+            # libpq-style connection string. Point at the in-cluster
+            # YugabyteDB service. Use a read-only DB role (SELECT-only
+            # grants) — the MCP server only exposes read tools, but using
+            # an RO role is defense in depth.
+            - name: YUGABYTEDB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sre-agent-secrets
+                  key: YUGABYTEDB_URL
+            - name: YB_MCP_TRANSPORT
+              value: "http"
+            - name: YB_MCP_STATELESS_HTTP
+              value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yugabytedb-mcp
+spec:
+  selector:
+    app: yugabytedb-mcp
+  ports:
+    - port: 8000
+      targetPort: 8000

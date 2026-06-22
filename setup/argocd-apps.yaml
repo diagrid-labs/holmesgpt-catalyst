@@ -1,0 +1,58 @@
+---
+# Sample ArgoCD applications representing the platform services seeded in MongoDB.
+# These deploy nginx as a stand-in so ArgoCD can report real health and sync status.
+# Apply with: kubectl apply -f setup/argocd-apps.yaml
+#
+# Prerequisites:
+#   - ArgoCD installed in the argocd namespace
+#   - production namespace created: kubectl create namespace production
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: api-gateway
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://charts.bitnami.com/bitnami
+    chart: nginx
+    targetRevision: 22.6.11
+    helm:
+      parameters:
+        - name: replicaCount
+          value: "1"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: auth-service
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://charts.bitnami.com/bitnami
+    chart: nginx
+    targetRevision: 22.6.11
+    helm:
+      parameters:
+        - name: replicaCount
+          value: "1"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

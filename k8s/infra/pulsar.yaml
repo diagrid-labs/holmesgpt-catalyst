@@ -1,0 +1,70 @@
+# Single-pod Apache Pulsar in standalone mode — suitable for kind / demo use.
+# NOT suitable for production: no persistence, no replication, no auth.
+# For real environments use the apachepulsar/pulsar Helm chart instead.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pulsar
+  labels:
+    app: pulsar
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pulsar
+  template:
+    metadata:
+      labels:
+        app: pulsar
+    spec:
+      containers:
+        - name: pulsar
+          image: apachepulsar/pulsar:3.3.7
+          # --no-functions-worker also drops the function worker, which adds
+          # noticeable startup memory pressure on top of the embedded ZK + BK.
+          command:
+            - bin/pulsar
+            - standalone
+            - --no-functions-worker
+            - --no-stream-storage
+          env:
+            # Standalone embeds ZK + BK + broker in one JVM. Defaults try to
+            # take >3 GB of heap, which OOMs the pod. Capping heap + direct
+            # memory keeps the JVM under the 4 GiB pod limit while leaving
+            # enough headroom that BK doesn't die mid-startup.
+            - name: PULSAR_MEM
+              value: "-Xms1500m -Xmx1500m -XX:MaxDirectMemorySize=1g"
+          ports:
+            - name: pulsar
+              containerPort: 6650
+            - name: admin-http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /admin/v2/clusters
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30
+          resources:
+            requests:
+              cpu: 500m
+              memory: 2Gi
+            limits:
+              memory: 4Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pulsar
+spec:
+  selector:
+    app: pulsar
+  ports:
+    - name: pulsar
+      port: 6650
+      targetPort: 6650
+    - name: admin-http
+      port: 8080
+      targetPort: 8080

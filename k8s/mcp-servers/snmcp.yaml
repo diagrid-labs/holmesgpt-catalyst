@@ -1,0 +1,42 @@
+# StreamNative MCP Server — exposes Pulsar admin + client operations as MCP
+# tools. Configured here to talk to the in-cluster standalone Pulsar via its
+# admin HTTP API. SSE transport at /mcp on port 9090.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snmcp
+  labels:
+    app: snmcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snmcp
+  template:
+    metadata:
+      labels:
+        app: snmcp
+    spec:
+      containers:
+        - name: snmcp
+          image: streamnative/snmcp:latest
+          args:
+            - sse
+            - --http-addr=:9090
+            - --http-path=/mcp
+            - --use-external-pulsar
+            - --pulsar-web-service-url=http://pulsar:8080
+            - --pulsar-service-url=pulsar://pulsar:6650
+          ports:
+            - containerPort: 9090
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snmcp
+spec:
+  selector:
+    app: snmcp
+  ports:
+    - port: 9090
+      targetPort: 9090

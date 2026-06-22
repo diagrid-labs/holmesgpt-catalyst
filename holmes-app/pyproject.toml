@@ -1,0 +1,28 @@
+[project]
+name = "holmes-app"
+version = "0.1.0"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "diagrid[holmesgpt]",
+    "chainlit>=2.0.0",
+]
+
+# HolmesGPT's pinned deps (fastapi <0.122, uvicorn <0.41, cachetools <6,
+# mcp ==1.25.0, httpx[socks] <0.28) conflict with diagrid[agent-core]'s
+# floors and with dapr-agents in the parent project. Keep this venv
+# dedicated: `uv sync` from inside holmes-app/ only.
+[tool.uv.sources]
+diagrid = { path = "../../python-ai", editable = true }
+
+# Mirror the override-dependencies from python-ai/pyproject.toml. Those
+# overrides only apply when python-ai resolves itself as the root; when it
+# is consumed as a dependency here, holmes-app must re-declare them.
+[tool.uv]
+# Allow pre-releases: holmesgpt's azure-mgmt-sql dep requires a pre-release.
+prerelease = "allow"
+override-dependencies = [
+    "fastapi>=0.129.0",
+    "uvicorn>=0.41.0",
+    "cachetools>=6.1.0,<8.0.0",
+    "mcp==1.26.0",
+]

@@ -1,0 +1,106 @@
+# HolmesGPT configuration for the Phase 1 smoke test.
+#
+# Intentionally near-empty: no toolsets are enabled, so investigations rely
+# on the LLM alone. The goal here is to verify the Dapr workflow + LiteLLM
+# round-trip works end-to-end, not to test tool integrations.
+#
+# Runtime knobs (enable_all_toolsets_possible, toolset_tags, etc.) are set
+# on the DaprWorkflowHolmesRunner constructor in app_holmes.py — they are
+# NOT valid keys in this file.
+#
+# Phase 1b will enable toolsets one at a time. Example:
+#
+#   toolsets:
+#     github:
+#       enabled: true
+#
+#   mcp_servers:
+#     mongodb:
+#       url: http://localhost:3000/mcp
+#       mode: streamable-http
+
+toolsets:
+  # kubernetes/core and argocd/core are HolmesGPT built-ins. They have the
+  # `core` tag and the right prerequisites pass in our container (kubectl
+  # and argocd binaries installed in the Dockerfile, ARGOCD_AUTH_TOKEN env
+  # surfaced from the secret) — but the Diagrid runner sets
+  # enable_all_toolsets_possible=False, which means a tag match is NOT
+  # enough on its own. Toolsets must be explicitly enabled here too.
+  kubernetes/core:
+    enabled: true
+  argocd/core:
+    enabled: true
+
+  # Bash fallback allowlist for argocd. The native argocd/core toolset
+  # above is preferred, but it requires ARGOCD_AUTH_TOKEN — which we have
+  # in-cluster (from sre-agent-secrets) but NOT in local dev unless the
+  # developer exports it explicitly. Without these allow entries, Holmes
+  # falls back to bash argocd, hits the approval gate, and the workflow
+  # parks forever waiting for an approval that no UI exists to send.
+  bash:
+    config:
+      allow:
+        - "argocd app get"
+        - "argocd app list"
+        - "argocd app diff"
+        - "argocd app history"
+        - "argocd app manifests"
+
+  # Native Prometheus toolset for metrics queries. URL is the in-cluster
+  # Service DNS for the kube-prometheus-stack Prometheus. In local dev this
+  # won't resolve and the toolset will fail prerequisites — Holmes continues
+  # without it. To run locally too, port-forward and override via env:
+  #   kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090
+  # then patch this URL to http://localhost:9090 before starting chainlit.
+  prometheus/metrics:
+    enabled: true
+    subtype: prometheus
+    config:
+      prometheus_url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+
+# GitHub MCP server. In-cluster the URL resolves to the github-mcp Service
+# (deployed via k8s/mcp-servers/github-mcp.yaml). For local dev, either:
+#   - port-forward the cluster service:
+#       kubectl port-forward svc/github-mcp 8000:8000
+#     and change the URL below to http://localhost:8000/mcp; OR
+#   - run the MCP server in a local docker container (instructions in the
+#     header comment of app_holmes.py).
+# Holmes auto-tags MCP servers as `core`, so they're picked up by
+# toolset_tags=["core"].
+mcp_servers:
+  github:
+    description: "GitHub MCP server — repos, PRs, workflows, commits"
+    config:
+      url: "http://github-mcp:8000/mcp"
+      mode: "streamable-http"
+      # The github-mcp-server requires a Bearer token on every request. The
+      # in-pod GITHUB_TOKEN env var (surfaced by sre-agent-secrets via the
+      # manifest's envFrom) is rendered into the header at connection time.
+      extra_headers:
+        Authorization: "Bearer {{ env.GITHUB_TOKEN }}"
+
+  yugabytedb:
+    description: "YugabyteDB MCP server — list tables, run read-only SQL queries"
+    config:
+      url: "http://yugabytedb-mcp:8000/mcp"
+      mode: "streamable-http"
+      # The yugabytedb-mcp server uses FastMCP with its default DNS-rebinding
+      # protection enabled, which only allows Host values matching localhost.
+      # Override the Host header so the cluster DNS name isn't rejected with 421.
+      # Upstream fix would be to set transport_security on FastMCP() in
+      # yugabytedb-mcp src/server.py; tracking as a follow-up.
+      extra_headers:
+        Host: "localhost"
+
+  snmcp:
+    description: "StreamNative MCP server — Apache Pulsar topics, namespaces, tenants, producers, consumers"
+    config:
+      url: "http://snmcp:9090/mcp"
+      mode: "sse"
+
+# Phase 1c: skill catalog migrated from the MongoDB incident corpus.
+# Path is resolved relative to the process working directory — chainlit
+# must be launched from holmes-app/ (which the docstring in app_holmes.py
+# already prescribes).
+custom_skill_paths:
+  - ./skills

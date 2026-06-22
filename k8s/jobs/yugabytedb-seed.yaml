@@ -1,0 +1,116 @@
+# One-shot Job that seeds the YugabyteDB demo database:
+#   - creates the holmes_ro read-only role
+#   - creates `services` and `incidents` tables
+#   - inserts sample rows
+#   - grants SELECT on the new tables to holmes_ro
+#
+# Idempotent: re-runs are safe (uses IF NOT EXISTS / ON CONFLICT). The
+# password for holmes_ro comes from the YUGABYTEDB_RO_PASSWORD key in
+# sre-agent-secrets — set that key BEFORE applying this Job, and make sure
+# the password it carries matches the password embedded in YUGABYTEDB_URL.
+#
+# Apply with:
+#   kubectl apply -f k8s/jobs/yugabytedb-seed.yaml
+#   kubectl wait --for=condition=complete job/yugabytedb-seed --timeout=120s
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: yugabytedb-seed
+  labels:
+    app: yugabytedb-seed
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: yugabytedb-seed
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: seed
+          # Reuse the yugabyte image since it already has ysqlsh on PATH.
+          image: yugabytedb/yugabyte:latest
+          env:
+            - name: HOLMES_RO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sre-agent-secrets
+                  key: YUGABYTEDB_RO_PASSWORD
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -euo pipefail
+              echo "Waiting for yb-tserver to accept connections..."
+              for i in $(seq 1 60); do
+                if /home/yugabyte/bin/ysqlsh -h yb-tserver-0.yb-tservers -U yugabyte -d yugabyte -c 'select 1' >/dev/null 2>&1; then
+                  break
+                fi
+                sleep 2
+              done
+
+              echo "Applying schema + seed data..."
+              PGPASSWORD="" /home/yugabyte/bin/ysqlsh \
+                -h yb-tserver-0.yb-tservers -U yugabyte -d yugabyte \
+                -v ON_ERROR_STOP=1 \
+                -v ro_password="'${HOLMES_RO_PASSWORD}'" <<'SQL'
+
+              -- Read-only role for Holmes. CREATE ROLE IF NOT EXISTS works
+              -- on Yugabyte (Postgres 11+ semantics for this is via DO block).
+              DO $$
+              BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'holmes_ro') THEN
+                  EXECUTE format('CREATE ROLE holmes_ro LOGIN PASSWORD %s', :ro_password);
+                ELSE
+                  EXECUTE format('ALTER ROLE holmes_ro WITH LOGIN PASSWORD %s', :ro_password);
+                END IF;
+              END
+              $$;
+
+              GRANT CONNECT ON DATABASE yugabyte TO holmes_ro;
+              GRANT USAGE ON SCHEMA public TO holmes_ro;
+
+              -- Demo tables. IF NOT EXISTS keeps the Job idempotent.
+              CREATE TABLE IF NOT EXISTS services (
+                id           SERIAL PRIMARY KEY,
+                name         TEXT NOT NULL UNIQUE,
+                owner        TEXT,
+                created_at   TIMESTAMP DEFAULT NOW()
+              );
+
+              CREATE TABLE IF NOT EXISTS incidents (
+                id           SERIAL PRIMARY KEY,
+                service_id   INT REFERENCES services(id),
+                severity     TEXT,
+                summary      TEXT,
+                created_at   TIMESTAMP DEFAULT NOW()
+              );
+
+              INSERT INTO services (name, owner) VALUES
+                ('api-gateway',   'platform-team'),
+                ('auth-service',  'identity-team'),
+                ('checkout-api',  'commerce-team')
+              ON CONFLICT (name) DO NOTHING;
+
+              -- Look up service ids by name so the seed is stable across reruns.
+              INSERT INTO incidents (service_id, severity, summary)
+              SELECT s.id, v.severity, v.summary
+              FROM services s
+              JOIN (VALUES
+                ('api-gateway',  'high',     'p99 latency spike past 2s'),
+                ('auth-service', 'critical', 'CrashLoopBackOff on auth-service pods')
+              ) AS v(name, severity, summary) ON v.name = s.name
+              WHERE NOT EXISTS (
+                SELECT 1 FROM incidents i WHERE i.summary = v.summary
+              );
+
+              -- Re-grant to cover tables created on a previous run.
+              GRANT SELECT ON ALL TABLES IN SCHEMA public TO holmes_ro;
+              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO holmes_ro;
+
+              SELECT 'services rows:' AS label, count(*) FROM services
+              UNION ALL
+              SELECT 'incidents rows:' AS label, count(*) FROM incidents;
+              SQL
+
+              echo "Seed complete."

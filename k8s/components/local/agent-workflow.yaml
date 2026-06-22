@@ -1,0 +1,16 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: agent-workflow
+spec:
+  type: state.mongodb
+  version: v1
+  metadata:
+  - name: host
+    value: 127.0.0.1:27017
+  - name: databaseName
+    value: sredb
+  - name: params
+    value: "?directConnection=true&replicaSet=rs0"
+  - name: actorStateStore
+    value: "true"
