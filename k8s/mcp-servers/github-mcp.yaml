@@ -16,7 +16,9 @@ spec:
     spec:
       containers:
         - name: github-mcp
-          image: ghcr.io/github/github-mcp-server:v1.0.5
+          # Upstream removed the v1.0.5 tag; :latest is the available stream.
+          # Pin to a specific published version once upstream tagging stabilizes.
+          image: ghcr.io/github/github-mcp-server:latest
           args:
             - --read-only
             - --toolsets=actions,pull_requests,repos
