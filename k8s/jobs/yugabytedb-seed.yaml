@@ -53,19 +53,19 @@ spec:
               PGPASSWORD="" /home/yugabyte/bin/ysqlsh \
                 -h yb-tserver-0.yb-tservers -U yugabyte -d yugabyte \
                 -v ON_ERROR_STOP=1 \
-                -v ro_password="'${HOLMES_RO_PASSWORD}'" <<'SQL'
+                -v ro_password="${HOLMES_RO_PASSWORD}" <<'SQL'
 
-              -- Read-only role for Holmes. CREATE ROLE IF NOT EXISTS works
-              -- on Yugabyte (Postgres 11+ semantics for this is via DO block).
-              DO $$
-              BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'holmes_ro') THEN
-                  EXECUTE format('CREATE ROLE holmes_ro LOGIN PASSWORD %s', :ro_password);
-                ELSE
-                  EXECUTE format('ALTER ROLE holmes_ro WITH LOGIN PASSWORD %s', :ro_password);
-                END IF;
-              END
-              $$;
+              -- Read-only role for Holmes. Yugabyte has no CREATE ROLE IF NOT
+              -- EXISTS, and psql does NOT interpolate :variables inside a
+              -- $$-dollar-quoted DO block (and $$ doesn't survive this
+              -- YAML->sh heredoc cleanly). So we generate the DDL with psql's
+              -- :'ro_password' interpolation (%L = safe SQL literal) and run it
+              -- via \gexec — no DO block, no dollar-quoting. \gexec must end the
+              -- line and the query must NOT be semicolon-terminated.
+              SELECT format('CREATE ROLE holmes_ro LOGIN PASSWORD %L', :'ro_password')
+              WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'holmes_ro')\gexec
+              SELECT format('ALTER ROLE holmes_ro WITH LOGIN PASSWORD %L', :'ro_password')
+              WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'holmes_ro')\gexec
 
               GRANT CONNECT ON DATABASE yugabyte TO holmes_ro;
               GRANT USAGE ON SCHEMA public TO holmes_ro;
