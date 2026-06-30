@@ -1,0 +1,160 @@
+# Catalyst deployment of the Durable SRE Investigator.
+#
+# Unlike k8s/agents/holmes-investigator.yaml (self-hosted Dapr sidecar +
+# MongoDB-backed components), this variant runs the app in its OWN namespace
+# and connects to a Diagrid Catalyst project REMOTELY:
+#   - no dapr.io/* annotations (Catalyst owns the Dapr runtime; we never
+#     deploy into the project namespace or inject an operator sidecar)
+#   - the Dapr Python SDK reaches Catalyst via DAPR_GRPC_ENDPOINT /
+#     DAPR_HTTP_ENDPOINT, authenticated by DAPR_API_TOKEN
+#   - state stores (agent-workflow / agent-memory / agent-registry) are the
+#     managed state.diagrid components that already exist in the project
+#
+# Project: holmesgpt-sre-agent (prj-6342098)
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: holmes-investigator
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: holmes-investigator
+  namespace: holmes-investigator
+---
+# Read-only cluster access for HolmesGPT's kubernetes/core + argocd/core
+# toolsets. Intentionally excludes secrets — Holmes should never need to
+# read credentials to investigate.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: holmes-investigator
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - services
+      - endpoints
+      - events
+      - nodes
+      - namespaces
+      - configmaps
+      - persistentvolumeclaims
+      - serviceaccounts
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "networkpolicies"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "applicationsets", "appprojects"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: holmes-investigator
+subjects:
+  - kind: ServiceAccount
+    name: holmes-investigator
+    namespace: holmes-investigator
+roleRef:
+  kind: ClusterRole
+  name: holmes-investigator
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: holmes-investigator
+  namespace: holmes-investigator
+  labels:
+    app: holmes-investigator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: holmes-investigator
+  template:
+    metadata:
+      labels:
+        app: holmes-investigator
+    spec:
+      # This cluster's `agents` node pool is used by a separate demo to
+      # simulate AZ failures (nodes get drained/killed). Pin the investigator
+      # — and its backing services — to the `control` pool so the SRE demo
+      # survives that chaos. (Control nodes are non-zonal; agents are zonal.)
+      nodeSelector:
+        agentpool: control
+      serviceAccountName: holmes-investigator
+      containers:
+        - name: holmes-investigator
+          image: docker.io/tezizzm/holmes-investigator:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            # --- Catalyst remote connection (holmesgpt-sre-agent project) ---
+            - name: DAPR_GRPC_ENDPOINT
+              value: "https://grpc-prj6342098.3jsqkq3nmjg2jxixwk5z3dbjrszhrhvg.r1.privatediagrid.net:443"
+            - name: DAPR_HTTP_ENDPOINT
+              value: "https://http-prj6342098.3jsqkq3nmjg2jxixwk5z3dbjrszhrhvg.r1.privatediagrid.net:443"
+            - name: DAPR_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: sre-agent-secrets
+                  key: DAPR_API_TOKEN
+            # --- LLM (HolmesGPT via LiteLLM) ---
+            - name: MODEL
+              value: "gpt-4o-mini"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sre-agent-secrets
+                  key: OPENAI_API_KEY
+            # Event tape store — reuse the managed workflow state store.
+            - name: HOLMES_EVENTS_STORE
+              value: "agent-workflow"
+            # argocd/core toolset reads ARGOCD_AUTH_TOKEN; aliased from the
+            # ARGOCD_TOKEN secret key. Optional until the toolset is wired.
+            - name: ARGOCD_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: sre-agent-secrets
+                  key: ARGOCD_TOKEN
+                  optional: true
+          envFrom:
+            - secretRef:
+                name: sre-agent-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: holmes-investigator
+  namespace: holmes-investigator
+  annotations:
+    # Gives the Azure LB public IP a DNS label, yielding the FQDN
+    # demo-holmes-investigator.northeurope.cloudapp.azure.com — same pattern
+    # the bank-heist demo uses. L4 LB passes Chainlit's websockets cleanly.
+    service.beta.kubernetes.io/azure-dns-label-name: demo-holmes-investigator
+spec:
+  type: LoadBalancer
+  selector:
+    app: holmes-investigator
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
