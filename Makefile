@@ -17,8 +17,11 @@ NS_PROD     ?= production
 # ── per-deploy config ────────────────────────────────────────────────────────
 PROJECT       ?= holmesgpt-sre-agent
 APPID         ?= holmes-investigator
-CATALYST_GRPC ?= https://grpc-prj12335605.cloud.r1.diagrid.io:443
-CATALYST_HTTP ?= https://http-prj12335605.cloud.r1.diagrid.io:443
+# Catalyst endpoints are NOT hardcoded — derived from the project at deploy time
+# (lazily, only when `make app` needs them). Override explicitly for CI, e.g.
+#   make app CATALYST_GRPC=… CATALYST_HTTP=…
+CATALYST_GRPC ?= $(shell diagrid project get $(PROJECT) -o json 2>/dev/null | jq -r '.status.endpoints.grpc.url // empty')
+CATALYST_HTTP ?= $(shell diagrid project get $(PROJECT) -o json 2>/dev/null | jq -r '.status.endpoints.http.url // empty')
 DNS_LABEL     ?= demo-holmes-investigator
 IMAGE_REPO    ?= docker.io/tezizzm/holmes-investigator
 IMAGE_TAG     ?= latest
@@ -55,6 +58,7 @@ infra: repos ## Install/upgrade ArgoCD, Prometheus, YugabyteDB (each in its name
 	helm upgrade --install yugabyte yugabytedb/yugabyte -n $(NS_YB) --create-namespace -f deploy/values/yugabyte.yaml --wait
 
 app: ## Upgrade ONLY the investigator + github-mcp (holmes ns)
+	@test -n "$(CATALYST_GRPC)" || { echo "ERROR: CATALYST_GRPC empty — run 'diagrid login' (project $(PROJECT)) or pass CATALYST_GRPC=… CATALYST_HTTP=…"; exit 1; }
 	helm upgrade --install holmes-app charts/holmes-app -n $(NS_HOLMES) --create-namespace \
 	  --set investigator.image.repo=$(IMAGE_REPO) --set investigator.image.tag=$(IMAGE_TAG) \
 	  --set investigator.service.dnsLabel=$(DNS_LABEL) \

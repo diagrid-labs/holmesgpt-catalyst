@@ -32,9 +32,9 @@ spec:
             - containerPort: 8000
           env:
             - name: DAPR_GRPC_ENDPOINT
-              value: {{ .Values.catalyst.grpcEndpoint | quote }}
+              value: {{ required "catalyst.grpcEndpoint is required (set via `make app` or --set catalyst.grpcEndpoint=…)" .Values.catalyst.grpcEndpoint | quote }}
             - name: DAPR_HTTP_ENDPOINT
-              value: {{ .Values.catalyst.httpEndpoint | quote }}
+              value: {{ required "catalyst.httpEndpoint is required (set via `make app` or --set catalyst.httpEndpoint=…)" .Values.catalyst.httpEndpoint | quote }}
             - name: MODEL
               value: {{ .Values.investigator.model | quote }}
             - name: HOLMES_EVENTS_STORE

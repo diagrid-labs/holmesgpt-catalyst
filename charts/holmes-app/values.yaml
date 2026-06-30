@@ -21,8 +21,10 @@ investigator:
     dnsLabel: demo-holmes-investigator
 
 catalyst:
-  grpcEndpoint: "https://grpc-prj12335605.cloud.r1.diagrid.io:443"
-  httpEndpoint: "https://http-prj12335605.cloud.r1.diagrid.io:443"
+  # No hardcoded project here — supply per-deploy (the Makefile derives these
+  # from `diagrid project get`; or pass --set catalyst.grpcEndpoint=… ). Required.
+  grpcEndpoint: ""
+  httpEndpoint: ""
 
 secret:
   name: sre-agent-secrets

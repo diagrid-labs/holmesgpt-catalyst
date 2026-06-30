@@ -91,11 +91,16 @@ spec:
           ports:
             - containerPort: 8000
           env:
-            # --- Catalyst remote connection (holmesgpt-sre-agent project) ---
+            # --- Catalyst remote connection ---
+            # Set to YOUR project's endpoints (don't hardcode a shared project):
+            #   diagrid project get <project> -o json | jq -r '.status.endpoints.grpc.url'
+            #   diagrid project get <project> -o json | jq -r '.status.endpoints.http.url'
+            # (The Makefile/chart path derives these automatically; this raw
+            # manifest is the Helm-free alternative, so fill them in by hand.)
             - name: DAPR_GRPC_ENDPOINT
-              value: "https://grpc-prj12335605.cloud.r1.diagrid.io:443"
+              value: "REPLACE_WITH_GRPC_ENDPOINT"   # https://grpc-<prj>.<region>.diagrid.io:443
             - name: DAPR_HTTP_ENDPOINT
-              value: "https://http-prj12335605.cloud.r1.diagrid.io:443"
+              value: "REPLACE_WITH_HTTP_ENDPOINT"   # https://http-<prj>.<region>.diagrid.io:443
             - name: DAPR_API_TOKEN
               valueFrom:
                 secretKeyRef:
