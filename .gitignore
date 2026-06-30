@@ -203,6 +203,7 @@ holmes-app/chainlit.md
 
 # Kubernetes secrets (contains credentials — never commit)
 k8s/secret.yaml
+k8s/alerts/alertmanager-slack-secret.yaml
 
 # IDE settings
 .vscode/

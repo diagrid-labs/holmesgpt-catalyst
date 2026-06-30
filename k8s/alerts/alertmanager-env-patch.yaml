@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Alertmanager
+metadata:
+  name: kube-prometheus-stack-alertmanager
+  namespace: monitoring
+spec:
+  containers:
+    - name: config-reloader
+      env:
+        - name: SLACK_WEBHOOK_URL
+          valueFrom:
+            secretKeyRef:
+              name: alertmanager-slack-webhook
+              key: url
