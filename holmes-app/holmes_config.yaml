@@ -72,13 +72,8 @@ mcp_servers:
     config:
       url: "http://yugabytedb-mcp:8000/mcp"
       mode: "streamable-http"
-      # The yugabytedb-mcp server uses FastMCP with its default DNS-rebinding
-      # protection enabled, which only allows Host values matching localhost.
-      # Override the Host header so the cluster DNS name isn't rejected with 421.
-      # Upstream fix would be to set transport_security on FastMCP() in
-      # yugabytedb-mcp src/server.py; tracking as a follow-up.
-      extra_headers:
-        Host: "localhost"
+      # (No Host-header workaround needed — current upstream yugabytedb-mcp uses
+      # the standalone fastmcp package and accepts cluster-DNS hosts.)
 
   snmcp:
     description: "StreamNative MCP server — Apache Pulsar topics, namespaces, tenants, producers, consumers"

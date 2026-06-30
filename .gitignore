@@ -207,12 +207,13 @@ k8s/secret.yaml
 # IDE settings
 .vscode/
 
-# Claude Code settings (personal approvals/permissions, not shared)
-.claude/settings.json
-.claude/settings.local.json
-
-# Local codebase-memory tooling scratch (auto-generated, not shared)
+# AI coding-agent working/config directories (personal, not shared).
+# AGENTS.md / CLAUDE.md ARE tracked — those are shared instructions, not dirs.
+.claude/
+.codex/
+.cursor/
+.aider*
 .codebase-memory/
 
 # Helm downloaded subchart archives (pulled via `helm dependency update`)
-charts/holmes-sre/charts/
+charts/*/charts/
