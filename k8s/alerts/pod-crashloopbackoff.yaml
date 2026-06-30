@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pod-crashloopbackoff
+  namespace: monitoring
+  labels:
+    # Must match the ruleSelector in the Prometheus CR — kube-prometheus-stack
+    # defaults to selecting on release label.
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: pod-health
+      interval: 1m
+      rules:
+        - alert: PodCrashLoopBackOff
+          expr: kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"} == 1
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} is CrashLoopBackOff"
+            description: >-
+              Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }}
+              has been waiting in CrashLoopBackOff for more than 2 minutes.
+            runbook: >-
+              Ask the SRE agent: "{{ $labels.pod }} pods are in CrashLoopBackOff. How do I triage?"
