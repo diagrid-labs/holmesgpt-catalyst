@@ -29,7 +29,8 @@ All application code lives in [`holmes-app/`](./holmes-app/). The migration rati
 
 - Python ≥ 3.11 ([python.org](https://www.python.org/downloads/))
 - Docker ([docs.docker.com](https://docs.docker.com/get-docker/))
-- Diagrid CLI ([docs.diagrid.io](https://docs.diagrid.io/catalyst/)) + a Diagrid Catalyst account (`diagrid login`)
+- A Diagrid Catalyst account [catalyst.diagrid.io/](https://catalyst.r1.diagrid.io/)
+- Diagrid CLI ([docs.diagrid.io](https://docs.diagrid.io/catalyst/)) + `diagrid login`
 - `uv` package manager ([docs.astral.sh](https://docs.astral.sh/uv/getting-started/installation/))
 - An OpenAI API key (or any LiteLLM-supported provider)
 
@@ -44,9 +45,7 @@ uv sync                        # creates a dedicated venv with diagrid[holmesgpt
 export OPENAI_API_KEY=sk-...
 export MODEL=gpt-4o-mini        # optional, this is the default
 
-# Point the app at your Catalyst project — no local Dapr runtime to install.
-# The Dapr SDK / DaprWorkflowHolmesRunner connect to Catalyst over these.
-# Get the values from: diagrid appid get holmes-investigator --project <project>
+# Get these values from: diagrid appid get holmes-investigator --project <project>
 export DAPR_GRPC_ENDPOINT="https://grpc-<project>.<region>.diagrid.io:443"
 export DAPR_HTTP_ENDPOINT="https://http-<project>.<region>.diagrid.io:443"
 export DAPR_API_TOKEN="diagrid://..."
@@ -91,8 +90,7 @@ Add a new skill by creating `holmes-app/skills/<name>/SKILL.md` — Holmes picks
 One command brings up the whole demo. Each namespace stands in for a **cluster
 boundary** — `holmes` is the agent side; `yugabyte` / `pulsar` / `monitoring` /
 `argocd` / `production` are the workload side Holmes investigates. The workflow
-engine and state stores are managed by **Diagrid Catalyst**, so nothing Dapr or
-MongoDB runs in the cluster.
+engine and state stores are managed by **Diagrid Catalyst**, so nothing additional needs to be installed on the cluster.
 
 **You need:** `kubectl` (pointed at any cluster), `helm ≥ 3`, the Diagrid CLI
 (`diagrid login`), and `jq`. The container images are prebuilt on Docker Hub —
@@ -117,8 +115,7 @@ make all
 Then open it:
 
 ```bash
-make url    # prints the LoadBalancer IP / cloudapp FQDN
-# or: kubectl port-forward -n holmes svc/holmes-investigator 8000:8000  → http://localhost:8000
+make url    # kubectl port-forward -n holmes svc/holmes-investigator 8000:8000  → http://localhost:8000
 ```
 
 ### Upgrade one piece (without redeploying everything)
@@ -144,11 +141,6 @@ make all CATALYST_GRPC=… CATALYST_HTTP=… DNS_LABEL=my-holmes \
 `make help` lists every target. Chart layout, MCP placement, swapping clusters,
 and building your own images are documented in [`charts/README.md`](charts/README.md).
 
-> **Manual alternative.** `kubectl apply -f k8s/agents/holmes-investigator-catalyst.yaml`
-> deploys just the investigator without Helm. The legacy self-hosted Dapr
-> manifests (`k8s/components/`, `k8s/agents/holmes-investigator.yaml`) are kept
-> only for a non-Catalyst deployment.
-
 
 ## What's where
 
@@ -160,15 +152,14 @@ and building your own images are documented in [`charts/README.md`](charts/READM
 | `charts/holmes-pulsar/` | Helm chart: Pulsar + `snmcp` + seed (the `pulsar` namespace) |
 | `charts/README.md` | Chart layout, MCP placement, per-cluster knobs |
 | `deploy/bootstrap.sh` | Non-K8s pre-flight: Catalyst App ID + secrets + ArgoCD token |
-| `deploy/values/` | Infra subchart overrides (Yugabyte 10Gi, control-pool pinning) |
+| `deploy/values/` | Infra subchart overrides (Yugabyte 10Gi) |
 | `holmes-app/app_holmes.py` | Chainlit handler + `DaprWorkflowHolmesRunner` setup |
 | `holmes-app/holmes_config.yaml` | Base HolmesGPT config (the chart mounts a templated copy in-cluster) |
 | `holmes-app/skills/` | Per-incident `SKILL.md` runbooks |
 | `holmes-app/pyproject.toml` | Holmes venv: pinned `diagrid[holmesgpt]` + uv overrides |
 | `scripts/build-yugabytedb-mcp.sh` | Builds the `yugabytedb-mcp` image (adds `psycopg[binary]`; pushes / `kind load`s) |
 | `docker/agents/holmes-investigator/` | Dockerfile for the investigator image |
-| `k8s/agents/holmes-investigator-catalyst.yaml` | Raw manifest for a Helm-free single-investigator apply |
-| `k8s/` (rest), `setup/argocd-apps.yaml` | Raw manifests the charts/Makefile supersede; `k8s/components/` + `k8s/agents/holmes-investigator.yaml` are legacy self-hosted Dapr (non-Catalyst) |
+| `k8s/`, `setup/argocd-apps.yaml` | Raw manifests the charts/Makefile supersede |
 | `docs/holmesgpt-migration-tradeoffs.md` | Architecture decisions, phase plan, tradeoffs |
 
 ## Troubleshooting

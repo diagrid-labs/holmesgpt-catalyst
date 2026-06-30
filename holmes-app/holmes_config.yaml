@@ -7,18 +7,6 @@
 # Runtime knobs (enable_all_toolsets_possible, toolset_tags, etc.) are set
 # on the DaprWorkflowHolmesRunner constructor in app_holmes.py — they are
 # NOT valid keys in this file.
-#
-# Phase 1b will enable toolsets one at a time. Example:
-#
-#   toolsets:
-#     github:
-#       enabled: true
-#
-#   mcp_servers:
-#     mongodb:
-#       url: http://localhost:3000/mcp
-#       mode: streamable-http
-
 toolsets:
   # kubernetes/core and argocd/core are HolmesGPT built-ins. They have the
   # `core` tag and the right prerequisites pass in our container (kubectl
@@ -98,7 +86,6 @@ mcp_servers:
       url: "http://snmcp:9090/mcp"
       mode: "sse"
 
-# Phase 1c: skill catalog migrated from the MongoDB incident corpus.
 # Path is resolved relative to the process working directory — chainlit
 # must be launched from holmes-app/ (which the docstring in app_holmes.py
 # already prescribes).
