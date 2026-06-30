@@ -7,8 +7,9 @@ metadata:
     {{- include "holmes-sre.labels" . | nindent 4 }}
 data:
   holmes_config.yaml: |
-    # Rendered by the holmes-sre Helm chart — toolsets/MCP servers below are
-    # gated by chart values. Mounted over /app/holmes_config.yaml in the image.
+    # Rendered by the holmes-app chart. Toolset/MCP endpoints reach across the
+    # namespace (≈ cluster) boundary via the URLs in values.yaml. Mounted over
+    # /app/holmes_config.yaml in the image.
     toolsets:
     {{- if .Values.toolsets.kubernetes }}
       kubernetes/core:
@@ -31,7 +32,7 @@ data:
         enabled: true
         subtype: prometheus
         config:
-          prometheus_url: {{ include "holmes-sre.prometheusUrl" . }}
+          prometheus_url: {{ .Values.toolsets.prometheus.url }}
     {{- end }}
     {{- if or .Values.mcp.github.enabled .Values.mcp.yugabytedb.enabled .Values.mcp.pulsar.enabled }}
     mcp_servers:
@@ -39,7 +40,7 @@ data:
       github:
         description: "GitHub MCP server — repos, PRs, workflows, commits"
         config:
-          url: "http://github-mcp:8000/mcp"
+          url: {{ .Values.mcp.github.url | quote }}
           mode: "streamable-http"
           extra_headers:
             Authorization: "Bearer {{ "{{" }} env.GITHUB_TOKEN {{ "}}" }}"
@@ -48,14 +49,14 @@ data:
       yugabytedb:
         description: "YugabyteDB MCP server — list tables, run read-only SQL queries"
         config:
-          url: "http://yugabytedb-mcp:8000/mcp"
+          url: {{ .Values.mcp.yugabytedb.url | quote }}
           mode: "streamable-http"
     {{- end }}
     {{- if .Values.mcp.pulsar.enabled }}
       snmcp:
         description: "StreamNative MCP server — Apache Pulsar topics, namespaces, tenants"
         config:
-          url: "http://snmcp:9090/mcp"
+          url: {{ .Values.mcp.pulsar.url | quote }}
           mode: "sse"
     {{- end }}
     {{- end }}

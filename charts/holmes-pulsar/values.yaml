@@ -1,0 +1,12 @@
+# holmes-pulsar — standalone Pulsar + snmcp + demo seed, in the `pulsar`
+# namespace (snmcp is Pulsar's MCP "service offering", next to the broker).
+# `helm upgrade holmes-pulsar charts/holmes-pulsar -n pulsar`.
+
+nodeSelector:
+  agentpool: control
+
+pulsarImage: apachepulsar/pulsar:3.3.7
+snmcpImage: streamnative/snmcp:latest
+
+seed:
+  enabled: true

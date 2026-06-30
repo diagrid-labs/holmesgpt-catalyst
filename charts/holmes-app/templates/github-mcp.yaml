@@ -1,0 +1,50 @@
+{{- if .Values.mcp.github.enabled }}
+{{- /* github-mcp is the external-SaaS connector — it fronts api.github.com, so
+       it lives with Holmes (no in-cluster service to sit beside). */ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-mcp
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "holmes-sre.labels" . | nindent 4 }}
+    app: github-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: github-mcp
+  template:
+    metadata:
+      labels:
+        app: github-mcp
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: github-mcp
+          image: {{ .Values.mcp.github.image | quote }}
+          args: ["--read-only", "--toolsets={{ .Values.mcp.github.toolsets }}", "http", "--port=8000"]
+          ports:
+            - containerPort: 8000
+          env:
+            - name: GITHUB_PERSONAL_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: GITHUB_TOKEN
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: github-mcp
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    app: github-mcp
+  ports:
+    - port: 8000
+      targetPort: 8000
+{{- end }}

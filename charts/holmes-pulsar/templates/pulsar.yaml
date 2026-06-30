@@ -1,4 +1,3 @@
-{{- if .Values.mcp.pulsar.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -23,7 +22,7 @@ spec:
       {{- end }}
       containers:
         - name: pulsar
-          image: {{ .Values.mcp.pulsar.pulsarImage | quote }}
+          image: {{ .Values.pulsarImage | quote }}
           command: [bin/pulsar, standalone, --no-functions-worker, --no-stream-storage]
           env:
             - name: PULSAR_MEM
@@ -52,4 +51,3 @@ spec:
   ports:
     - {name: pulsar, port: 6650, targetPort: 6650}
     - {name: admin-http, port: 8080, targetPort: 8080}
-{{- end }}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: holmes-yugabyte
+description: YugabyteDB MCP server + demo seed — the DB's MCP "service offering" (yugabyte ns)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

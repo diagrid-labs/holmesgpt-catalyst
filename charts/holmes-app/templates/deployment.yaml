@@ -41,7 +41,7 @@ spec:
               value: {{ .Values.investigator.eventsStore | quote }}
             {{- if .Values.toolsets.argocd.enabled }}
             - name: ARGOCD_SERVER
-              value: {{ include "holmes-sre.argocdServer" . | quote }}
+              value: {{ .Values.toolsets.argocd.server | quote }}
             - name: ARGOCD_OPTS
               value: {{ .Values.toolsets.argocd.opts | quote }}
             - name: ARGOCD_AUTH_TOKEN

@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snmcp
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "holmes-sre.labels" . | nindent 4 }}
+    app: snmcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snmcp
+  template:
+    metadata:
+      labels:
+        app: snmcp
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: snmcp
+          image: {{ .Values.snmcpImage | quote }}
+          args:
+            - sse
+            - --http-addr=:9090
+            - --http-path=/mcp
+            - --use-external-pulsar
+            - --pulsar-web-service-url=http://pulsar:8080
+            - --pulsar-service-url=pulsar://pulsar:6650
+          ports:
+            - containerPort: 9090
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snmcp
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    app: snmcp
+  ports:
+    - port: 9090
+      targetPort: 9090

@@ -1,0 +1,19 @@
+# holmes-yugabyte — yugabytedb-mcp + demo seed, deployed in the `yugabyte`
+# namespace next to the DB (the DB team's MCP "service offering").
+# `helm upgrade holmes-yugabyte charts/holmes-yugabyte -n yugabyte`.
+
+nodeSelector:
+  agentpool: control
+
+image: docker.io/tezizzm/yugabytedb-mcp:latest
+
+# Secret in THIS namespace (yugabyte). Holds YUGABYTEDB_URL (consumed by the MCP
+# server) and YUGABYTEDB_RO_PASSWORD (consumed by the seed). Created by bootstrap.sh.
+secret:
+  name: sre-agent-secrets
+
+# yb DB is in this same namespace, so bare service DNS works.
+yugabyteHost: yb-tserver-0.yb-tservers
+
+seed:
+  enabled: true

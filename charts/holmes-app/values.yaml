@@ -1,5 +1,5 @@
-# holmes-app — the investigator (its own Helm release).
-# Independently upgradable: `helm upgrade holmes-app charts/holmes-app -n <ns>`.
+# holmes-app — the investigator + the github-mcp connector (own release, holmes ns).
+# Independently upgradable: `helm upgrade holmes-app charts/holmes-app -n holmes`.
 
 nodeSelector:
   agentpool: control
@@ -26,34 +26,30 @@ secret:
   create: false
   data: {}
 
-# Toolset wiring written into holmes_config.yaml (the mounted ConfigMap).
+# Endpoints Holmes reaches ACROSS the namespace (≈ cluster) boundary. Defaults
+# assume the multi-namespace layout; override for a different topology.
 toolsets:
   kubernetes: true
   prometheus:
     enabled: true
-    # Multi-namespace standalone: set this to the monitoring-ns Prometheus, e.g.
-    #   http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
-    # "" => computed from the release (correct for the single-namespace umbrella).
-    url: ""
+    url: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
   argocd:
     enabled: true
-    # host:port, no scheme. "" => computed from the release.
-    server: ""
+    server: "argocd-server.argocd.svc.cluster.local:443"   # host:port, no scheme
     opts: "--grpc-web --insecure"
 
-# Which MCP server URLs to list in holmes_config. These are the *clients* —
-# the servers themselves are deployed by the holmes-mcp chart. Keep in sync
-# (or leave all true: a missing server just degrades that toolset gracefully).
+# MCP servers Holmes calls. github-mcp is deployed HERE (with Holmes); the
+# yugabytedb/pulsar MCP servers live next to their services (other namespaces),
+# so they're referenced by FQDN — deployed by the holmes-yugabyte / holmes-pulsar charts.
 mcp:
   github:
     enabled: true
+    image: ghcr.io/github/github-mcp-server:latest
+    toolsets: "actions,pull_requests,repos"
+    url: "http://github-mcp:8000/mcp"                                  # same namespace
   yugabytedb:
     enabled: true
+    url: "http://yugabytedb-mcp.yugabyte.svc.cluster.local:8000/mcp"   # yugabyte ns
   pulsar:
     enabled: true
-
-# Demo scaffolding the investigator observes (managed alongside the app).
-targetApps:
-  enabled: true
-  namespace: production
-grafanaDashboards: true
+    url: "http://snmcp.pulsar.svc.cluster.local:9090/mcp"              # pulsar ns
