@@ -68,7 +68,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: holmes-investigator
-  namespace: holmes
+  namespace: holmes-investigator
   labels:
     app: holmes-investigator
 spec:
@@ -93,9 +93,9 @@ spec:
           env:
             # --- Catalyst remote connection (holmesgpt-sre-agent project) ---
             - name: DAPR_GRPC_ENDPOINT
-              value: "https://grpc-prj6342098.3jsqkq3nmjg2jxixwk5z3dbjrszhrhvg.r1.privatediagrid.net:443"
+              value: "https://grpc-prj12335605.cloud.r1.diagrid.io:443"
             - name: DAPR_HTTP_ENDPOINT
-              value: "https://http-prj6342098.3jsqkq3nmjg2jxixwk5z3dbjrszhrhvg.r1.privatediagrid.net:443"
+              value: "https://http-prj12335605.cloud.r1.diagrid.io:443"
             - name: DAPR_API_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -121,7 +121,7 @@ spec:
                   key: ARGOCD_TOKEN
                   optional: true
             - name: TOOL_MEMORY_LIMIT_MB
-              value: "2000"
+              value: "4000"
           envFrom:
             - secretRef:
                 name: sre-agent-secrets
@@ -133,7 +133,7 @@ metadata:
   namespace: holmes-investigator
   annotations:
     # Gives the Azure LB public IP a DNS label, yielding the FQDN
-    # demo-holmes-investigator.northeurope.cloudapp.azure.com — same pattern
+    # demo-holmes-investigator.westeurope.cloudapp.azure.com — same pattern
     # the bank-heist demo uses. L4 LB passes Chainlit's websockets cleanly.
     service.beta.kubernetes.io/azure-dns-label-name: demo-holmes-investigator
 spec:
