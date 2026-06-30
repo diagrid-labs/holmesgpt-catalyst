@@ -213,3 +213,6 @@ k8s/secret.yaml
 
 # Local codebase-memory tooling scratch (auto-generated, not shared)
 .codebase-memory/
+
+# Helm downloaded subchart archives (pulled via `helm dependency update`)
+charts/holmes-sre/charts/

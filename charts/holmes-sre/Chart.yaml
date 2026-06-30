@@ -1,0 +1,27 @@
+apiVersion: v2
+name: holmes-sre
+description: Durable SRE Investigator (HolmesGPT on Diagrid Catalyst) + its demo stack
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+# Heavy supporting infra is pulled in as optional subcharts so one
+# `helm install` can bring up the whole demo. Toggle each via its condition
+# (see values.yaml: argo-cd.enabled / kube-prometheus-stack.enabled /
+# yugabyte.enabled). Disable any you already run in the cluster.
+#
+# NOTE: an umbrella install places every subchart in the release namespace.
+# Install with: helm install holmes -n holmes-sre --create-namespace …
+dependencies:
+  - name: argo-cd
+    version: "7.*"
+    repository: https://argoproj.github.io/argo-helm
+    condition: argo-cd.enabled
+  - name: kube-prometheus-stack
+    version: "65.*"
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: kube-prometheus-stack.enabled
+  - name: yugabyte
+    version: "2.*"
+    repository: https://charts.yugabyte.com
+    condition: yugabyte.enabled

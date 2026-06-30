@@ -1,0 +1,151 @@
+{{- if .Values.mcp.github.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-mcp
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "holmes-sre.labels" . | nindent 4 }}
+    app: github-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: github-mcp
+  template:
+    metadata:
+      labels:
+        app: github-mcp
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: github-mcp
+          image: {{ .Values.mcp.github.image | quote }}
+          args: ["--read-only", "--toolsets={{ .Values.mcp.github.toolsets }}", "http", "--port=8000"]
+          ports:
+            - containerPort: 8000
+          env:
+            - name: GITHUB_PERSONAL_ACCESS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: GITHUB_TOKEN
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: github-mcp
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    app: github-mcp
+  ports:
+    - port: 8000
+      targetPort: 8000
+{{- end }}
+{{- if .Values.mcp.yugabytedb.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yugabytedb-mcp
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "holmes-sre.labels" . | nindent 4 }}
+    app: yugabytedb-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: yugabytedb-mcp
+  template:
+    metadata:
+      labels:
+        app: yugabytedb-mcp
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: yugabytedb-mcp
+          image: {{ .Values.mcp.yugabytedb.image | quote }}
+          imagePullPolicy: Always
+          args: ["--transport=http", "--stateless-http"]
+          ports:
+            - containerPort: 8000
+          env:
+            - name: YUGABYTEDB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: YUGABYTEDB_URL
+            - name: YB_MCP_TRANSPORT
+              value: "http"
+            - name: YB_MCP_STATELESS_HTTP
+              value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yugabytedb-mcp
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    app: yugabytedb-mcp
+  ports:
+    - port: 8000
+      targetPort: 8000
+{{- end }}
+{{- if .Values.mcp.pulsar.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snmcp
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "holmes-sre.labels" . | nindent 4 }}
+    app: snmcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snmcp
+  template:
+    metadata:
+      labels:
+        app: snmcp
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: snmcp
+          image: {{ .Values.mcp.pulsar.snmcpImage | quote }}
+          args:
+            - sse
+            - --http-addr=:9090
+            - --http-path=/mcp
+            - --use-external-pulsar
+            - --pulsar-web-service-url=http://pulsar:8080
+            - --pulsar-service-url=pulsar://pulsar:6650
+          ports:
+            - containerPort: 9090
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snmcp
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    app: snmcp
+  ports:
+    - port: 9090
+      targetPort: 9090
+{{- end }}

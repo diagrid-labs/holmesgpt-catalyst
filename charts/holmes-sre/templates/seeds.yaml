@@ -1,0 +1,117 @@
+{{- if and .Values.yugabyte.enabled .Values.seed.yugabytedb }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: yugabytedb-seed
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "holmes-sre.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        app: yugabytedb-seed
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: seed
+          image: yugabytedb/yugabyte:latest
+          env:
+            - name: HOLMES_RO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: YUGABYTEDB_RO_PASSWORD
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -euo pipefail
+              echo "Waiting for yb-tserver..."
+              for i in $(seq 1 90); do
+                if /home/yugabyte/bin/ysqlsh -h yb-tserver-0.yb-tservers -U yugabyte -d yugabyte -c 'select 1' >/dev/null 2>&1; then break; fi
+                sleep 2
+              done
+              /home/yugabyte/bin/ysqlsh -h yb-tserver-0.yb-tservers -U yugabyte -d yugabyte \
+                -v ON_ERROR_STOP=1 -v ro_password="${HOLMES_RO_PASSWORD}" <<'SQL'
+              SELECT format('CREATE ROLE holmes_ro LOGIN PASSWORD %L', :'ro_password')
+              WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'holmes_ro')\gexec
+              SELECT format('ALTER ROLE holmes_ro WITH LOGIN PASSWORD %L', :'ro_password')
+              WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'holmes_ro')\gexec
+              GRANT CONNECT ON DATABASE yugabyte TO holmes_ro;
+              GRANT USAGE ON SCHEMA public TO holmes_ro;
+              CREATE TABLE IF NOT EXISTS services (
+                id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE, owner TEXT, created_at TIMESTAMP DEFAULT NOW());
+              CREATE TABLE IF NOT EXISTS incidents (
+                id SERIAL PRIMARY KEY, service_id INT REFERENCES services(id), severity TEXT, summary TEXT, created_at TIMESTAMP DEFAULT NOW());
+              INSERT INTO services (name, owner) VALUES
+                ('api-gateway','platform-team'),('auth-service','identity-team'),('checkout-api','commerce-team')
+              ON CONFLICT (name) DO NOTHING;
+              INSERT INTO incidents (service_id, severity, summary)
+              SELECT s.id, v.severity, v.summary FROM services s
+              JOIN (VALUES ('api-gateway','high','p99 latency spike past 2s'),
+                           ('auth-service','critical','CrashLoopBackOff on auth-service pods')) AS v(name,severity,summary)
+                ON v.name = s.name
+              WHERE NOT EXISTS (SELECT 1 FROM incidents i WHERE i.summary = v.summary);
+              GRANT SELECT ON ALL TABLES IN SCHEMA public TO holmes_ro;
+              ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO holmes_ro;
+              SQL
+              echo "Seed complete."
+{{- end }}
+{{- if and .Values.mcp.pulsar.enabled .Values.seed.pulsar }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pulsar-seed
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "holmes-sre.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        app: pulsar-seed
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: seed
+          image: apachepulsar/pulsar:latest
+          env:
+            - name: PULSAR_ADMIN_URL
+              value: http://pulsar:8080
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              for i in $(seq 1 90); do
+                if curl -sf "$PULSAR_ADMIN_URL/admin/v2/clusters" >/dev/null 2>&1; then break; fi
+                sleep 2
+              done
+              ADMIN="bin/pulsar-admin --admin-url $PULSAR_ADMIN_URL"
+              for topic in incidents.alerts services.events audit.log; do
+                $ADMIN topics create persistent://public/default/${topic} 2>/dev/null || true
+              done
+              bin/pulsar-client --url pulsar://pulsar:6650 produce persistent://public/default/incidents.alerts \
+                --messages 'api-gateway p99 latency 2.4s;auth-service CrashLoopBackOff' --separator ';' || true
+              echo "Seed complete."
+{{- end }}

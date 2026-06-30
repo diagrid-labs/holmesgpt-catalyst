@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "holmes-sre.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "holmes-sre.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.investigator.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "holmes-sre.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "holmes-sre.labels" . | nindent 8 }}
+      annotations:
+        # Roll the pod when the rendered config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap-holmes-config.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "holmes-sre.name" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ include "holmes-sre.name" . }}
+          image: "{{ .Values.investigator.image.repo }}:{{ .Values.investigator.image.tag }}"
+          imagePullPolicy: {{ .Values.investigator.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DAPR_GRPC_ENDPOINT
+              value: {{ .Values.catalyst.grpcEndpoint | quote }}
+            - name: DAPR_HTTP_ENDPOINT
+              value: {{ .Values.catalyst.httpEndpoint | quote }}
+            - name: MODEL
+              value: {{ .Values.investigator.model | quote }}
+            - name: HOLMES_EVENTS_STORE
+              value: {{ .Values.investigator.eventsStore | quote }}
+            {{- if .Values.toolsets.argocd.enabled }}
+            - name: ARGOCD_SERVER
+              value: {{ include "holmes-sre.argocdServer" . | quote }}
+            - name: ARGOCD_OPTS
+              value: {{ .Values.toolsets.argocd.opts | quote }}
+            - name: ARGOCD_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secret.name }}
+                  key: ARGOCD_TOKEN
+                  optional: true
+            {{- end }}
+          envFrom:
+            # DAPR_API_TOKEN, OPENAI_API_KEY, GITHUB_TOKEN, YUGABYTEDB_URL, … all
+            # arrive from the secret created by bootstrap.sh (or secret.create).
+            - secretRef:
+                name: {{ .Values.secret.name }}
+          volumeMounts:
+            - name: holmes-config
+              mountPath: /app/holmes_config.yaml
+              subPath: holmes_config.yaml
+      volumes:
+        - name: holmes-config
+          configMap:
+            name: {{ include "holmes-sre.name" . }}-config
