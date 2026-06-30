@@ -1,91 +1,20 @@
-# ── Durable SRE Investigator — umbrella chart values ─────────────────────────
-# One `helm install` brings up the investigator + its MCP servers + demo data
-# services + (optionally) ArgoCD / Prometheus / YugabyteDB. The non-K8s
-# pre-flight (Catalyst App ID, the sre-agent-secrets Secret, the ArgoCD token)
-# is handled by charts/holmes-sre/bootstrap.sh — run it before `helm install`.
+# Umbrella values. Subchart values are namespaced by chart name. Most app/mcp
+# defaults live in the component charts; override per-deploy here or via --set.
+#
+# Single release in one namespace — the argo-cd/prometheus subchart service
+# names get the release-name prefix, which the holmes-app config helper already
+# accounts for. (The Makefile / per-release path uses unprefixed names instead.)
 
-# Pin the whole demo to one node pool. This cluster's `agents` pool is used by
-# a separate AZ-failure chaos demo, so the SRE stack runs on `control`.
-# Set to {} to let the scheduler place pods anywhere.
-nodeSelector:
-  agentpool: control
+holmes-app:
+  catalyst:
+    grpcEndpoint: "https://grpc-prj6342098.3jsqkq3nmjg2jxixwk5z3dbjrszhrhvg.r1.privatediagrid.net:443"
+    httpEndpoint: "https://http-prj6342098.3jsqkq3nmjg2jxixwk5z3dbjrszhrhvg.r1.privatediagrid.net:443"
+  # leave toolsets.prometheus.url / argocd.server empty => computed from the
+  # umbrella release name (correct for the single-release subchart layout).
 
-investigator:
-  image:
-    repo: docker.io/tezizzm/holmes-investigator
-    tag: latest
-    pullPolicy: Always
-  replicas: 1
-  model: gpt-4o-mini
-  # Event-tape store; reuse the managed workflow state store.
-  eventsStore: agent-workflow
-  service:
-    # type LoadBalancer + an Azure DNS label gives a public cloudapp FQDN.
-    type: LoadBalancer
-    port: 80
-    # Azure-only: sets <dnsLabel>.<region>.cloudapp.azure.com on the LB IP.
-    # Leave "" to skip the annotation (any cloud / use the raw IP).
-    dnsLabel: demo-holmes-investigator
+holmes-mcp: {}
 
-# ── Catalyst connection ──────────────────────────────────────────────────────
-# The project's gRPC/HTTP endpoints (from `diagrid appid get`). The matching
-# DAPR_API_TOKEN is read from the secret below — never put it here.
-catalyst:
-  grpcEndpoint: "https://grpc-prj6342098.3jsqkq3nmjg2jxixwk5z3dbjrszhrhvg.r1.privatediagrid.net:443"
-  httpEndpoint: "https://http-prj6342098.3jsqkq3nmjg2jxixwk5z3dbjrszhrhvg.r1.privatediagrid.net:443"
-
-# ── Secret ───────────────────────────────────────────────────────────────────
-# By default the chart REFERENCES an existing secret created by bootstrap.sh
-# (so tokens never live in git/values). Set create=true to have the chart
-# template it from `data` instead (e.g. for --set in CI).
-secret:
-  name: sre-agent-secrets
-  create: false
-  data: {}   # OPENAI_API_KEY, DAPR_API_TOKEN, GITHUB_TOKEN, ARGOCD_TOKEN, YUGABYTEDB_URL, YUGABYTEDB_RO_PASSWORD
-
-# ── Toolsets / MCP servers (conditional) ─────────────────────────────────────
-toolsets:
-  kubernetes: true          # always useful; drives the ClusterRole
-  prometheus:
-    enabled: true
-    # Defaults to the in-namespace kube-prometheus-stack service; override if
-    # you point at an external Prometheus.
-    url: ""                 # "" => computed from the release in _helpers.tpl
-  argocd:
-    enabled: true
-    # host:port, NO scheme (argocd CLI prepends its own).
-    server: ""              # "" => computed from the release
-    opts: "--grpc-web --insecure"
-
-mcp:
-  github:
-    enabled: true
-    image: ghcr.io/github/github-mcp-server:latest
-    toolsets: "actions,pull_requests,repos"
-  yugabytedb:
-    enabled: true
-    image: docker.io/tezizzm/yugabytedb-mcp:latest
-  pulsar:                   # StreamNative MCP + a standalone Pulsar
-    enabled: true
-    snmcpImage: streamnative/snmcp:latest
-    pulsarImage: apachepulsar/pulsar:3.3.7
-
-# One-shot seed Jobs (run as post-install/post-upgrade helm hooks).
-seed:
-  yugabytedb: true
-  pulsar: true
-
-# Target apps Holmes investigates (ArgoCD Applications -> nginx stand-ins).
-targetApps:
-  enabled: true
-  namespace: production
-
-grafanaDashboards: true
-
-# ── Subcharts ────────────────────────────────────────────────────────────────
-# Set enabled=false for any you already run in the cluster. Values below mirror
-# the reference deployment (incl. the Yugabyte 10Gi fix for the disk-full guard
-# and control-pool pinning).
+# ── Infra subcharts (set enabled=false to skip ones you already run) ──────────
 argo-cd:
   enabled: true
   applicationSet:
@@ -116,22 +45,15 @@ yugabyte:
   replicas:
     master: 1
     tserver: 1
-  # 10Gi, NOT the chart's default 10Gi-vs-1Gi trap — YB's disk-full guard
-  # rejects writes when free space is under ~1GiB, so never go below ~10Gi.
-  storage:
+  storage:           # 10Gi — YB's disk-full guard rejects writes under ~1GiB free
     master:
       size: 10Gi
     tserver:
       size: 10Gi
   resource:
     master:
-      requests:
-        cpu: 0.5
-        memory: 1Gi
+      requests: {cpu: 0.5, memory: 1Gi}
     tserver:
-      requests:
-        cpu: 0.5
-        memory: 1Gi
-  # Yugabyte chart applies nodeSelector via these.
+      requests: {cpu: 0.5, memory: 1Gi}
   nodeSelector:
     agentpool: control

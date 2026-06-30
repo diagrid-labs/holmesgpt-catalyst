@@ -1,4 +1,10 @@
 dependencies:
+- name: holmes-app
+  repository: file://../holmes-app
+  version: 0.1.0
+- name: holmes-mcp
+  repository: file://../holmes-mcp
+  version: 0.1.0
 - name: argo-cd
   repository: https://argoproj.github.io/argo-helm
   version: 7.9.1
@@ -8,5 +14,5 @@ dependencies:
 - name: yugabyte
   repository: https://charts.yugabyte.com
   version: 2.25.2
-digest: sha256:af654ecb3110cbd375132df316fb636bcc1155be51b1295d07f729d1c7d13f33
-generated: "2026-06-29T18:18:29.232155-07:00"
+digest: sha256:995559c0ab85344b7f37822a6d31f4d83de81dda1a516a18e5000bb7e5d26f7f
+generated: "2026-06-29T19:06:53.766024-07:00"

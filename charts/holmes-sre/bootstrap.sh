@@ -62,14 +62,18 @@ EOF
 }
 
 argocd_token() {
-  echo ">> Waiting for ArgoCD server (${RELEASE}-argocd-server in $NAMESPACE)"
-  kubectl -n "$NAMESPACE" rollout status deploy/"${RELEASE}-argocd-server" --timeout=180s
-  kubectl -n "$NAMESPACE" patch configmap "${RELEASE}-argocd-cm" --type merge -p '{"data":{"accounts.admin":"apiKey,login"}}'
-  kubectl -n "$NAMESPACE" rollout restart deploy/"${RELEASE}-argocd-server"
-  kubectl -n "$NAMESPACE" rollout status deploy/"${RELEASE}-argocd-server" --timeout=120s
+  # Service/configmap names differ by install mode: per-release (Makefile) =
+  # "argocd-server"/"argocd-cm"; umbrella subchart = "<release>-argocd-server".
+  ARGOCD_SVC="${ARGOCD_SVC:-${RELEASE}-argocd-server}"
+  ARGOCD_CM="${ARGOCD_CM:-${ARGOCD_SVC%-server}-cm}"
+  echo ">> Waiting for ArgoCD server ($ARGOCD_SVC in $NAMESPACE)"
+  kubectl -n "$NAMESPACE" rollout status deploy/"$ARGOCD_SVC" --timeout=180s
+  kubectl -n "$NAMESPACE" patch configmap "$ARGOCD_CM" --type merge -p '{"data":{"accounts.admin":"apiKey,login"}}'
+  kubectl -n "$NAMESPACE" rollout restart deploy/"$ARGOCD_SVC"
+  kubectl -n "$NAMESPACE" rollout status deploy/"$ARGOCD_SVC" --timeout=120s
 
   PW=$(kubectl -n "$NAMESPACE" get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
-  kubectl -n "$NAMESPACE" port-forward svc/"${RELEASE}-argocd-server" 18080:443 >/tmp/pf-argocd.log 2>&1 &
+  kubectl -n "$NAMESPACE" port-forward svc/"$ARGOCD_SVC" 18080:443 >/tmp/pf-argocd.log 2>&1 &
   PF=$!; trap 'kill $PF 2>/dev/null || true' EXIT
   for i in $(seq 1 20); do curl -sk https://localhost:18080/healthz >/dev/null 2>&1 && break; sleep 1; done
   SESSION=$(curl -sk -H 'Content-Type: application/json' https://localhost:18080/api/v1/session \

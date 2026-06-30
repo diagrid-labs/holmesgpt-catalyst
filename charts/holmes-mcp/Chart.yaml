@@ -1,0 +1,6 @@
+apiVersion: v2
+name: holmes-mcp
+description: MCP servers + Pulsar + seed jobs for the SRE Investigator — own release
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

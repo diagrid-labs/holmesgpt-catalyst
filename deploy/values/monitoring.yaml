@@ -1,0 +1,15 @@
+# kube-prometheus-stack overrides for the per-release (Makefile) install.
+prometheus:
+  prometheusSpec:
+    nodeSelector:
+      agentpool: control
+grafana:
+  nodeSelector:
+    agentpool: control
+prometheusOperator:
+  nodeSelector:
+    agentpool: control
+alertmanager:
+  alertmanagerSpec:
+    nodeSelector:
+      agentpool: control

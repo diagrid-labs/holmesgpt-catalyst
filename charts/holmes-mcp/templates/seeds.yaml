@@ -1,4 +1,4 @@
-{{- if and .Values.yugabyte.enabled .Values.seed.yugabytedb }}
+{{- if .Values.seed.yugabytedb }}
 apiVersion: batch/v1
 kind: Job
 metadata:
