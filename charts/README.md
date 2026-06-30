@@ -49,7 +49,7 @@ secret and restarts the app.
 
 - **Yugabyte 10Gi** (`deploy/values/yugabyte.yaml`) — YB's disk-full guard rejects
   writes under ~1GiB free.
-- **Control-pool pinning** everywhere — the `agents` pool is an AZ-failure chaos demo.
+- **Control-pool pinning** — pin workloads to a specific node pool via `make … NODE_POOL=<pool>`.
 - `holmes_config.yaml` is mounted from a templated ConfigMap; toolset/MCP URLs
   are values (FQDNs across the namespace boundary).
 - The `yugabytedb-mcp` image is custom-built — see `scripts/build-yugabytedb-mcp.sh`.

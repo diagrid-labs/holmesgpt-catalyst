@@ -1,5 +1,5 @@
 ---
-# Sample ArgoCD applications representing the platform services seeded in MongoDB.
+# Sample ArgoCD applications representing the platform services.
 # These deploy nginx as a stand-in so ArgoCD can report real health and sync status.
 # Apply with: kubectl apply -f setup/argocd-apps.yaml
 #
@@ -47,6 +47,10 @@ spec:
       parameters:
         - name: replicaCount
           value: "1"
+        - name: resources.limits.memory
+          value: "5Mi"
+        - name: resources.requests.memory
+          value: "5Mi"
   destination:
     server: https://kubernetes.default.svc
     namespace: production

@@ -1,14 +1,7 @@
 ---
-# ArgoCD Application that syncs the Grafana dashboard ConfigMaps
-# from the public sre-platform-services fork into the monitoring namespace.
+# ArgoCD Application that syncs the Grafana dashboard ConfigMaps into the monitoring namespace.
 # kube-prometheus-stack's Grafana sidecar auto-imports any ConfigMap labeled grafana_dashboard=1.
-#
-# Apply with: envsubst < setup/grafana-dashboards-app.yaml | kubectl apply -f -
-#
-# Prerequisites:
-#   - GITHUB_OWNER environment variable set (e.g. export GITHUB_OWNER=tezizzm)
-#   - The sre-platform-services fork is public so ArgoCD can read it without credentials
-#   - kube-prometheus-stack installed in the monitoring namespace (step 6)
+# Applied by: make dashboards
 
 apiVersion: argoproj.io/v1alpha1
 kind: Application
