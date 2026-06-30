@@ -5,7 +5,11 @@ Run:
     uv sync
     export OPENAI_API_KEY=...
     export MODEL=gpt-4o-mini
-    dapr init  # one-time, if not already done
+    # Connect to your Catalyst project (no local Dapr runtime). Values from:
+    #   diagrid appid get holmes-investigator --project <project>
+    export DAPR_GRPC_ENDPOINT=https://grpc-<project>.<region>.diagrid.io:443
+    export DAPR_HTTP_ENDPOINT=https://http-<project>.<region>.diagrid.io:443
+    export DAPR_API_TOKEN=diagrid://...
 
     # Optional: start the GitHub MCP server (referenced by holmes_config.yaml).
     # Port 8765 on the host to avoid collision with chainlit's 8000.
@@ -14,8 +18,7 @@ Run:
         ghcr.io/github/github-mcp-server \\
         --read-only --toolsets=actions,pull_requests,repos http --port=8000
 
-    dapr run --app-id holmes-investigator --app-port 8000 \\
-        -- uv run chainlit run app_holmes.py --port 8000 --host 0.0.0.0
+    uv run chainlit run app_holmes.py --port 8000 --host 0.0.0.0
 
 Slash commands:
     /replay <instance_id> <seq>
@@ -128,7 +131,7 @@ logger.info("DaprWorkflowHolmesRunner started (model=%s, max_steps=%d)", MODEL, 
 def replay_tool(instance_id: str, seq: int) -> Dict[str, Any]:
     """Replay a single tool call from a past investigation.
 
-    Reads the `start_tool_calling` event at the given seq off the Dapr-backed
+    Reads the `start_tool_calling` event at the given seq off the Catalyst-backed
     event tape, looks up the named tool in the current registry's executor,
     and invokes it with the recorded params. No LLM call, no workflow.
 

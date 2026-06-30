@@ -1,7 +1,7 @@
 # HolmesGPT configuration for the Phase 1 smoke test.
 #
 # Intentionally near-empty: no toolsets are enabled, so investigations rely
-# on the LLM alone. The goal here is to verify the Dapr workflow + LiteLLM
+# on the LLM alone. The goal here is to verify the Catalyst workflow + LiteLLM
 # round-trip works end-to-end, not to test tool integrations.
 #
 # Runtime knobs (enable_all_toolsets_possible, toolset_tags, etc.) are set

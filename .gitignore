@@ -207,5 +207,9 @@ k8s/secret.yaml
 # IDE settings
 .vscode/
 
-# Claude Code local settings (personal-machine, not shared)
+# Claude Code settings (personal approvals/permissions, not shared)
+.claude/settings.json
 .claude/settings.local.json
+
+# Local codebase-memory tooling scratch (auto-generated, not shared)
+.codebase-memory/

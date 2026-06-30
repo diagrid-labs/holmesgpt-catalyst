@@ -13,7 +13,7 @@ limitations under the License.
 
 # Durable SRE Investigator
 
-A Chainlit chat UI that runs [HolmesGPT](https://holmesgpt.dev) inside a Dapr Workflow via Diagrid's `DaprWorkflowHolmesRunner`. A single investigator service replaces the previous fleet of per-domain agents — HolmesGPT decides which tools to call (Kubernetes, ArgoCD, Grafana, Prometheus, GitHub, MongoDB, Bash, …) and the Dapr wrapper makes every LLM call and tool invocation a durable activity.
+A Chainlit chat UI that runs [HolmesGPT](https://holmesgpt.dev) as a durable workflow on [Diagrid Catalyst](https://www.diagrid.io/catalyst) via Diagrid's `DaprWorkflowHolmesRunner`. A single investigator service replaces the previous fleet of per-domain agents — HolmesGPT decides which tools to call (Kubernetes, ArgoCD, Grafana, Prometheus, GitHub, YugabyteDB, Pulsar, Bash, …) and Catalyst makes every LLM call and tool invocation a durable workflow activity. Catalyst is a managed service — the workflow engine and state stores live in the Catalyst cloud, not in your cluster.
 
 All application code lives in [`holmes-app/`](./holmes-app/). The migration rationale is documented in [`docs/holmesgpt-migration-tradeoffs.md`](./docs/holmesgpt-migration-tradeoffs.md).
 
@@ -22,14 +22,14 @@ All application code lives in [`holmes-app/`](./holmes-app/). The migration rati
 - `holmes-app/app_holmes.py` is the Chainlit handler. It instantiates a single `DaprWorkflowHolmesRunner` at startup and streams events from the workflow's event tape into the UI as Chainlit steps.
 - `holmes-app/holmes_config.yaml` configures HolmesGPT's toolsets, MCP servers, and custom skill paths.
 - `holmes-app/skills/` holds per-incident runbooks as `SKILL.md` files. HolmesGPT matches incoming questions to a skill by description, fetches the body via the `fetch_skill` tool, and follows the workflow it prescribes.
-- Workflow state, conversation memory, and the event tape are all persisted via Dapr state stores (`agent-workflow`, `agent-memory`, `agent-registry`) — see `k8s/components/`.
-- LLM access goes directly through LiteLLM (env-var credentials). The `llm-provider` Dapr conversation component is retained for non-investigation LLM flows (e.g. the planned post-investigation summary in Phase 5).
+- Workflow state, conversation memory, and the event tape are all persisted via Catalyst managed state stores (`agent-workflow`, `agent-memory`, `agent-registry`, type `state.diagrid`) — provisioned in the Catalyst project, not in-cluster.
+- LLM access goes directly through LiteLLM (env-var credentials). The `llm-provider` Catalyst conversation component is retained for non-investigation LLM flows (e.g. the planned post-investigation summary in Phase 5).
 
 ## Prerequisites
 
 - Python ≥ 3.11 ([python.org](https://www.python.org/downloads/))
 - Docker ([docs.docker.com](https://docs.docker.com/get-docker/))
-- Dapr CLI ([docs.dapr.io](https://docs.dapr.io/getting-started/install-dapr-cli/))
+- Diagrid CLI ([docs.diagrid.io](https://docs.diagrid.io/catalyst/)) + a Diagrid Catalyst account (`diagrid login`)
 - `uv` package manager ([docs.astral.sh](https://docs.astral.sh/uv/getting-started/installation/))
 - An OpenAI API key (or any LiteLLM-supported provider)
 
@@ -44,10 +44,20 @@ uv sync                        # creates a dedicated venv with diagrid[holmesgpt
 export OPENAI_API_KEY=sk-...
 export MODEL=gpt-4o-mini        # optional, this is the default
 
-dapr init                       # one-time, starts Redis/scheduler/placement containers
-dapr run --app-id holmes-investigator --app-port 8000 \
-  -- uv run chainlit run app_holmes.py --port 8000 --host 0.0.0.0
+# Point the app at your Catalyst project — no local Dapr runtime to install.
+# The Dapr SDK / DaprWorkflowHolmesRunner connect to Catalyst over these.
+# Get the values from: diagrid appid get holmes-investigator --project <project>
+export DAPR_GRPC_ENDPOINT="https://grpc-<project>.<region>.diagrid.io:443"
+export DAPR_HTTP_ENDPOINT="https://http-<project>.<region>.diagrid.io:443"
+export DAPR_API_TOKEN="diagrid://..."
+
+uv run chainlit run app_holmes.py --port 8000 --host 0.0.0.0
 ```
+
+> The App ID + managed components must exist in your Catalyst project first —
+> see step 1 of the Kubernetes deploy below (`diagrid appid create …`). The
+> same App ID works for local dev and in-cluster. `diagrid dev` is the managed
+> alternative if you'd rather scaffold the env wiring automatically.
 
 Open <http://localhost:8000>.
 
@@ -79,21 +89,32 @@ Add a new skill by creating `holmes-app/skills/<name>/SKILL.md` — Holmes picks
 
 ## Deploy to Kubernetes
 
-This deploys Holmes alongside the target services it investigates (`api-gateway` and `auth-service` nginx stand-ins managed by ArgoCD). The cluster-side infrastructure (Dapr, ArgoCD, MongoDB, Grafana) is unchanged from before — only Holmes replaces the previous per-agent fleet.
+This deploys Holmes alongside the target services it investigates (`api-gateway` and `auth-service` nginx stand-ins managed by ArgoCD). The in-cluster infrastructure (ArgoCD, Grafana/Prometheus, demo data services) runs in your cluster; the **workflow engine, state stores, and Dapr runtime are provided by Diagrid Catalyst** — nothing Dapr is installed in the cluster, and there's no MongoDB to run.
 
-### 1. Bring up a cluster + Dapr
+### 1. Create the Catalyst project + App ID
+
+Create (or select) a Catalyst project, then create the `holmes-investigator` App ID. The managed state stores the runner expects (`agent-workflow`, `agent-memory`, `agent-registry`, type `state.diagrid`) live in the project and become `ready` once the App ID connects.
 
 ```bash
-kind create cluster
-dapr init --kubernetes --wait
+diagrid login
+diagrid project create holmesgpt-sre-agent --wait      # or use an existing project
+diagrid appid create holmes-investigator --project holmesgpt-sre-agent --wait
+
+# The App ID's token + the project endpoints are what the app uses to reach
+# Catalyst (DAPR_API_TOKEN / DAPR_GRPC_ENDPOINT / DAPR_HTTP_ENDPOINT):
+diagrid appid get holmes-investigator --project holmesgpt-sre-agent
 ```
 
-### 2. Deploy MongoDB (Dapr state stores need a replica set)
+> Components are managed in the Catalyst project (`diagrid component list`),
+> not applied as in-cluster Dapr CRDs. The legacy self-hosted Dapr manifests
+> under `k8s/components/` are kept only for a non-Catalyst deployment.
+
+### 2. Bring up a Kubernetes cluster
+
+Any cluster works (the investigator only needs outbound HTTPS to Catalyst + RBAC to read cluster state). The reference deployment runs on AKS.
 
 ```bash
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm install mongodb bitnami/mongodb \
-  --set architecture=replicaset --set replicaCount=1 --set auth.enabled=false --wait
+kind create cluster      # or use an existing cluster
 ```
 
 ### 3. Deploy ArgoCD (so Holmes has real apps to investigate)
@@ -175,12 +196,17 @@ kubectl apply -f k8s/grafana-dashboards/         # api-gateway-overview / auth-s
 
 ### 6. Create the `sre-agent-secrets` Secret
 
+The investigator's own namespace holds a regular K8s Secret with the Catalyst connection token and the LLM key:
+
 ```bash
-kubectl create secret generic sre-agent-secrets \
-  --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY"
+kubectl create namespace holmes-investigator
+kubectl create secret generic sre-agent-secrets -n holmes-investigator \
+  --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
+  --from-literal=DAPR_API_TOKEN="$(diagrid appid get holmes-investigator \
+      --project holmesgpt-sre-agent -o json | jq -r .status.apiToken)"
 ```
 
-Add the following additional keys when wiring up the matching toolsets in `holmes-app/holmes_config.yaml`:
+`DAPR_API_TOKEN` is the App ID's Catalyst token (the `diagrid://…` value from step 1) — it's how the pod authenticates to the managed workflow/state APIs. Add the following additional keys when wiring up the matching toolsets in `holmes-app/holmes_config.yaml`:
 
 | Key | Used by | Notes |
 | --- | --- | --- |
@@ -217,16 +243,22 @@ IMAGE_REPO=$IMAGE_REPO PUSH=1 ./scripts/build-yugabytedb-mcp.sh
 
 Once upstream accepts a configurable `transport_security` (or makes the default less restrictive), drop the script and use the unmodified source.
 
-### 8. Apply Dapr components, MCP servers, and the investigator
+### 8. Deploy the MCP servers and the investigator
+
+No Dapr components are applied to the cluster — they're managed in the Catalyst project (step 1). The investigator reaches Catalyst over `DAPR_GRPC_ENDPOINT` / `DAPR_HTTP_ENDPOINT` / `DAPR_API_TOKEN`. Deploy everything into the `holmes-investigator` namespace so the bare-name MCP Service DNS resolves:
 
 ```bash
-kubectl apply -f k8s/components/
-kubectl apply -f k8s/mcp-servers/github-mcp.yaml           # uses public ghcr.io image
-kubectl apply -f k8s/mcp-servers/snmcp.yaml                # uses public Docker Hub image (streamnative/snmcp)
-envsubst < k8s/mcp-servers/yugabytedb-mcp.yaml | kubectl apply -f -  # uses $IMAGE_REPO
-envsubst < k8s/agents/holmes-investigator.yaml | kubectl apply -f -
-kubectl wait --for=condition=ready pod -l app=holmes-investigator --timeout=120s
+kubectl apply -n holmes-investigator -f k8s/mcp-servers/github-mcp.yaml   # public ghcr.io image
+kubectl apply -n holmes-investigator -f k8s/mcp-servers/snmcp.yaml        # public streamnative/snmcp
+IMAGE_REPO=$IMAGE_REPO envsubst < k8s/mcp-servers/yugabytedb-mcp.yaml | kubectl apply -n holmes-investigator -f -
+
+# The Catalyst deployment manifest — set DAPR_*_ENDPOINT to your project's
+# gRPC/HTTP URLs (from `diagrid appid get`) and the image to your $IMAGE_REPO first.
+kubectl apply -f k8s/agents/holmes-investigator-catalyst.yaml
+kubectl rollout status deploy/holmes-investigator -n holmes-investigator --timeout=150s
 ```
+
+`k8s/agents/holmes-investigator-catalyst.yaml` is the Catalyst variant (own namespace, no Dapr sidecar/annotations, remote endpoints + token, `LoadBalancer` Service for a public FQDN). The legacy self-hosted Dapr manifest (`k8s/agents/holmes-investigator.yaml`, sidecar + MongoDB components) is kept only for non-Catalyst use.
 
 Holmes consumes MCP servers at their in-cluster Service DNS (`http://github-mcp:8000/mcp`, `http://yugabytedb-mcp:8000/mcp`), configured in `holmes-app/holmes_config.yaml`. Skipping an MCP manifest just disables that toolset — Holmes continues without it.
 
@@ -247,7 +279,8 @@ Open <http://localhost:8000>.
 | `holmes-app/skills/` | Per-incident `SKILL.md` runbooks |
 | `holmes-app/.chainlit/config.toml` | UI branding + Chainlit features |
 | `holmes-app/pyproject.toml` | Holmes venv: pinned `diagrid[holmesgpt]` + uv overrides |
-| `k8s/agents/holmes-investigator.yaml` | Deployment + Service manifest |
+| `k8s/agents/holmes-investigator-catalyst.yaml` | **Catalyst** Deployment + LoadBalancer Service (remote endpoints + token, own namespace) — the one to use |
+| `k8s/agents/holmes-investigator.yaml` | Legacy self-hosted Dapr manifest (sidecar + in-cluster components); non-Catalyst only |
 | `k8s/mcp-servers/github-mcp.yaml` | GitHub MCP server (upstream image, public) |
 | `k8s/mcp-servers/yugabytedb-mcp.yaml` | YugabyteDB MCP server (custom-built image with FastMCP DNS-rebinding patch — see deploy step 7) |
 | `k8s/jobs/yugabytedb-seed.yaml` | One-shot Job: creates `holmes_ro`, seeds demo tables, grants SELECT |
@@ -255,7 +288,7 @@ Open <http://localhost:8000>.
 | `k8s/infra/pulsar.yaml` | Standalone single-pod Apache Pulsar for the kind demo (admin HTTP on :8080, binary on :6650) |
 | `k8s/mcp-servers/snmcp.yaml` | StreamNative MCP server (`streamnative/snmcp:latest`) pointed at the in-cluster Pulsar; SSE transport |
 | `k8s/jobs/pulsar-seed.yaml` | One-shot Job: creates demo topics + produces sample messages |
-| `k8s/components/` | Dapr state store + LLM provider components (unchanged) |
+| `k8s/components/` | Legacy self-hosted Dapr state store + LLM provider components; **not used on Catalyst** (managed in the project instead) |
 | `k8s/grafana-dashboards/` | api-gateway / auth-service Grafana dashboard ConfigMaps |
 | `docker/agents/holmes-investigator/` | Dockerfile for the investigator image |
 | `docs/holmesgpt-migration-tradeoffs.md` | Architecture decisions, phase plan, tradeoffs |
@@ -264,7 +297,7 @@ Open <http://localhost:8000>.
 ## Troubleshooting
 
 - **`uv sync` reports a dependency conflict.** `holmes-app/pyproject.toml` carries `[tool.uv] override-dependencies` for `fastapi`, `uvicorn`, `cachetools`, `mcp`. Make sure you're running `uv sync` from inside `holmes-app/`, not from the repo root. The Holmes venv must stay isolated.
-- **`dapr run` fails with `connection refused: localhost:6379` / `localhost:50006`.** Dapr's Redis or scheduler container isn't running. `dapr uninstall && dapr init` rebuilds them.
+- **The app hangs at startup / `durabletask-worker` can't connect.** It can't reach Catalyst. Check `DAPR_GRPC_ENDPOINT` / `DAPR_HTTP_ENDPOINT` point at your project's URLs (`diagrid appid get …`) and `DAPR_API_TOKEN` is the App ID's `diagrid://…` token. The managed components must be `ready` (`diagrid component list`), which requires the App ID to exist (step 1).
 - **Chainlit reports `Too many packets in payload` on UI open.** Stale Socket.IO session. Hard-refresh the browser (Cmd+Shift+R) or delete `holmes-app/.files/` and restart.
 - **`fetch_skill` succeeds but `bash` calls hit "Command requires approval".** The command isn't on HolmesGPT's bash allowlist. Add it under `toolsets.bash.config.allow` in `holmes-app/holmes_config.yaml`. The repo already allows the common read-only `argocd app *` commands.
 - **HolmesGPT decides nothing matches an incident.** Check that the SKILL.md's `description:` frontmatter explicitly mentions the symptom terms your users will use ("p99 latency spike", "CrashLoopBackOff"). The description is the only signal it has for matching.
