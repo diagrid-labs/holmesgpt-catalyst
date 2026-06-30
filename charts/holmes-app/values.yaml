@@ -1,8 +1,9 @@
 # holmes-app — the investigator + the github-mcp connector (own release, holmes ns).
 # Independently upgradable: `helm upgrade holmes-app charts/holmes-app -n holmes`.
 
-nodeSelector:
-  agentpool: control
+# Empty = schedule anywhere (portable default). Pin via `make … NODE_POOL=<pool>`
+# on clusters where you need it (e.g. the AZ-failure chaos cluster used control).
+nodeSelector: {}
 
 investigator:
   image:

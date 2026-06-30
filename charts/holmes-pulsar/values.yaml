@@ -2,8 +2,7 @@
 # namespace (snmcp is Pulsar's MCP "service offering", next to the broker).
 # `helm upgrade holmes-pulsar charts/holmes-pulsar -n pulsar`.
 
-nodeSelector:
-  agentpool: control
+nodeSelector: {}   # schedule anywhere; pin via `make … NODE_POOL=<pool>`
 
 pulsarImage: apachepulsar/pulsar:3.3.7
 snmcpImage: streamnative/snmcp:latest

@@ -1,6 +1,3 @@
 # argo-cd subchart overrides for the per-release (Makefile) install.
 applicationSet:
   enabled: true
-global:
-  nodeSelector:
-    agentpool: control

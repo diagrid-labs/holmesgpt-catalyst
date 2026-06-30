@@ -2,8 +2,7 @@
 # namespace next to the DB (the DB team's MCP "service offering").
 # `helm upgrade holmes-yugabyte charts/holmes-yugabyte -n yugabyte`.
 
-nodeSelector:
-  agentpool: control
+nodeSelector: {}   # schedule anywhere; pin via `make … NODE_POOL=<pool>`
 
 image: docker.io/tezizzm/yugabytedb-mcp:latest
 

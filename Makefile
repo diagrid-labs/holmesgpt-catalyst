@@ -22,7 +22,10 @@ CATALYST_HTTP ?= https://http-prj6342098.3jsqkq3nmjg2jxixwk5z3dbjrszhrhvg.r1.pri
 DNS_LABEL     ?= demo-holmes-investigator
 IMAGE_REPO    ?= docker.io/tezizzm/holmes-investigator
 IMAGE_TAG     ?= latest
+NODE_POOL     ?=            # empty = schedule anywhere; set to pin (e.g. NODE_POOL=control)
 BOOTSTRAP     := deploy/bootstrap.sh
+
+NODE_SEL := $(if $(NODE_POOL),--set nodeSelector.agentpool=$(NODE_POOL),)
 
 # Cross-boundary endpoints derived from the namespace vars (kept consistent if
 # you change a namespace).
@@ -57,13 +60,13 @@ app: ## Upgrade ONLY the investigator + github-mcp (holmes ns)
 	  --set investigator.service.dnsLabel=$(DNS_LABEL) \
 	  --set catalyst.grpcEndpoint=$(CATALYST_GRPC) --set catalyst.httpEndpoint=$(CATALYST_HTTP) \
 	  --set toolsets.prometheus.url=$(PROM_URL) --set toolsets.argocd.server=$(ARGO_SVR) \
-	  --set mcp.yugabytedb.url=$(YB_MCP) --set mcp.pulsar.url=$(SN_MCP)
+	  --set mcp.yugabytedb.url=$(YB_MCP) --set mcp.pulsar.url=$(SN_MCP) $(NODE_SEL)
 
 yb: ## Upgrade ONLY yugabytedb-mcp + seed (yugabyte ns)
-	helm upgrade --install holmes-yugabyte charts/holmes-yugabyte -n $(NS_YB) --create-namespace
+	helm upgrade --install holmes-yugabyte charts/holmes-yugabyte -n $(NS_YB) --create-namespace $(NODE_SEL)
 
 pulsar: ## Upgrade ONLY Pulsar + snmcp + seed (pulsar ns)
-	helm upgrade --install holmes-pulsar charts/holmes-pulsar -n $(NS_PULSAR) --create-namespace
+	helm upgrade --install holmes-pulsar charts/holmes-pulsar -n $(NS_PULSAR) --create-namespace $(NODE_SEL)
 
 targets: ## Deploy the ArgoCD target apps (api-gateway / auth-service)
 	kubectl apply -f setup/argocd-apps.yaml
