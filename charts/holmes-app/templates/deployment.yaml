@@ -39,6 +39,14 @@ spec:
               value: {{ .Values.investigator.model | quote }}
             - name: HOLMES_EVENTS_STORE
               value: {{ .Values.investigator.eventsStore | quote }}
+            {{- if .Values.investigator.toolMemoryLimitMB }}
+            # ulimit -v cap per tool subprocess. Default (800 on x86_64) is too
+            # low — Go tools (kubectl, prometheus) reserve lots of virtual memory
+            # at startup and get OOM-killed (exit 137 / [OOM]). It caps virtual
+            # address space, not RSS, so a generous value is safe.
+            - name: TOOL_MEMORY_LIMIT_MB
+              value: {{ .Values.investigator.toolMemoryLimitMB | quote }}
+            {{- end }}
             {{- if .Values.toolsets.argocd.enabled }}
             - name: ARGOCD_SERVER
               value: {{ .Values.toolsets.argocd.server | quote }}

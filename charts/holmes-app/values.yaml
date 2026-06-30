@@ -13,6 +13,9 @@ investigator:
   replicas: 1
   model: gpt-4o-mini
   eventsStore: agent-workflow
+  # Per-tool-subprocess virtual-memory cap (ulimit -v). The HolmesGPT default
+  # (800 on x86_64) OOM-kills Go tools like kubectl at startup; raise it.
+  toolMemoryLimitMB: 4000
   service:
     type: LoadBalancer
     port: 80
