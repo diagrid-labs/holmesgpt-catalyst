@@ -97,7 +97,7 @@ reaction_on_message_received = false
 # Name of the assistant.
 name = "Durable SRE Agent"
 
-# default_theme = "dark"
+default_theme = "light"
 
 # Force a specific language for all users (e.g., "en-US", "he-IL", "fr-FR")
 # If not set, the browser's language will be used
