@@ -19,8 +19,8 @@ investigator:
     dnsLabel: demo-holmes-investigator
 
 catalyst:
-  grpcEndpoint: "https://grpc-prj6342098.3jsqkq3nmjg2jxixwk5z3dbjrszhrhvg.r1.privatediagrid.net:443"
-  httpEndpoint: "https://http-prj6342098.3jsqkq3nmjg2jxixwk5z3dbjrszhrhvg.r1.privatediagrid.net:443"
+  grpcEndpoint: "https://grpc-prj12335605.cloud.r1.diagrid.io:443"
+  httpEndpoint: "https://http-prj12335605.cloud.r1.diagrid.io:443"
 
 secret:
   name: sre-agent-secrets
@@ -53,4 +53,4 @@ mcp:
     url: "http://yugabytedb-mcp.yugabyte.svc.cluster.local:8000/mcp"   # yugabyte ns
   pulsar:
     enabled: true
-    url: "http://snmcp.pulsar.svc.cluster.local:9090/mcp"              # pulsar ns
+    url: "http://snmcp.pulsar.svc.cluster.local:9090/snmcp/mcp"              # pulsar ns

@@ -26,7 +26,7 @@ spec:
           args:
             - sse
             - --http-addr=:9090
-            - --http-path=/mcp
+            - --http-path={{ .Values.snmcpHttpPath }}
             - --use-external-pulsar
             - --pulsar-web-service-url=http://pulsar:8080
             - --pulsar-service-url=pulsar://pulsar:6650

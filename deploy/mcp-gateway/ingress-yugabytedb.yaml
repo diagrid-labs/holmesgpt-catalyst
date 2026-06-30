@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: yugabytedb-mcp
+  namespace: yugabyte
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Catalyst MCP"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [holmes-mcp-demo.westeurope.cloudapp.azure.com]
+      secretName: mcp-tls
+  rules:
+    - host: holmes-mcp-demo.westeurope.cloudapp.azure.com
+      http:
+        paths:
+          - path: /mcp
+            pathType: Prefix
+            backend:
+              service: {name: yugabytedb-mcp, port: {number: 8000}}

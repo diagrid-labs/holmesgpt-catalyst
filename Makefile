@@ -17,8 +17,8 @@ NS_PROD     ?= production
 # ── per-deploy config ────────────────────────────────────────────────────────
 PROJECT       ?= holmesgpt-sre-agent
 APPID         ?= holmes-investigator
-CATALYST_GRPC ?= https://grpc-prj6342098.3jsqkq3nmjg2jxixwk5z3dbjrszhrhvg.r1.privatediagrid.net:443
-CATALYST_HTTP ?= https://http-prj6342098.3jsqkq3nmjg2jxixwk5z3dbjrszhrhvg.r1.privatediagrid.net:443
+CATALYST_GRPC ?= https://grpc-prj12335605.cloud.r1.diagrid.io:443
+CATALYST_HTTP ?= https://http-prj12335605.cloud.r1.diagrid.io:443
 DNS_LABEL     ?= demo-holmes-investigator
 IMAGE_REPO    ?= docker.io/tezizzm/holmes-investigator
 IMAGE_TAG     ?= latest
@@ -32,10 +32,10 @@ NODE_SEL := $(if $(NODE_POOL),--set nodeSelector.agentpool=$(NODE_POOL),)
 PROM_URL  := http://kube-prometheus-stack-prometheus.$(NS_MON).svc.cluster.local:9090
 ARGO_SVR  := argocd-server.$(NS_ARGOCD).svc.cluster.local:443
 YB_MCP    := http://yugabytedb-mcp.$(NS_YB).svc.cluster.local:8000/mcp
-SN_MCP    := http://snmcp.$(NS_PULSAR).svc.cluster.local:9090/mcp
+SN_MCP    := http://snmcp.$(NS_PULSAR).svc.cluster.local:9090/snmcp/mcp
 
 .DEFAULT_GOAL := help
-.PHONY: help repos bootstrap infra app yb pulsar targets dashboards argocd-token all url uninstall
+.PHONY: help repos bootstrap infra app yb pulsar targets dashboards argocd-token all url uninstall ingress-infra mcp-gateway
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-13s\033[0m %s\n", $$1, $$2}'
@@ -86,3 +86,20 @@ uninstall: ## Remove the Holmes releases (keeps infra + namespaces)
 	-helm uninstall holmes-app -n $(NS_HOLMES)
 	-helm uninstall holmes-yugabyte -n $(NS_YB)
 	-helm uninstall holmes-pulsar -n $(NS_PULSAR)
+
+# ── Catalyst MCP-gateway exposure (cloud region only) ────────────────────────
+MCP_DNS_LABEL ?= holmes-mcp-demo
+
+ingress-infra: ## Install ingress-nginx (+health-probe fix) + cert-manager for MCP exposure
+	helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null 2>&1 || true
+	helm repo add jetstack https://charts.jetstack.io >/dev/null 2>&1 || true
+	helm repo update >/dev/null
+	helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx -n ingress-nginx --create-namespace \
+	  --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-dns-label-name"=$(MCP_DNS_LABEL) \
+	  --set controller.service.annotations."service\.beta\.kubernetes\.io/azure-load-balancer-health-probe-request-path"=/healthz \
+	  --wait
+	helm upgrade --install cert-manager jetstack/cert-manager -n cert-manager --create-namespace --set crds.enabled=true --wait
+
+mcp-gateway: ## Apply ClusterIssuer + MCP ingresses (needs mcp-basic-auth secrets — see deploy/mcp-gateway/README.md)
+	kubectl apply -f deploy/mcp-gateway/clusterissuer.yaml
+	kubectl apply -f deploy/mcp-gateway/ingress-yugabytedb.yaml -f deploy/mcp-gateway/ingress-snmcp.yaml
