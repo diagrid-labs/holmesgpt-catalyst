@@ -95,7 +95,7 @@ reaction_on_message_received = false
 
 [UI]
 # Name of the assistant.
-name = "Durable SRE Investigator"
+name = "Durable SRE Agent"
 
 # default_theme = "dark"
 
@@ -117,14 +117,14 @@ default_sidebar_state = "open"  # Options: "open", "closed", "hidden"
 confirm_new_chat = true
 
 # Description of the assistant. This is used for HTML tags.
-# description = ""
+description = "Built with Diagrid Catalyst and HolmesGPT"
 
 # Chain of Thought (CoT) display mode. Can be "hidden", "tool_call" or "full".
 cot = "full"
 
 # Specify a CSS file that can be used to customize the user interface.
 # The CSS file can be served from the public directory or via an external link.
-# custom_css = "/public/stylesheet.css"
+custom_css = "/public/stylesheet.css"
 
 # Specify additional attributes for a custom CSS file
 # custom_css_attributes = "media=\"print\""
@@ -153,7 +153,7 @@ alert_style = "classic"
 # custom_meta_image_url = "https://chainlit-cloud.s3.eu-west-3.amazonaws.com/logo/chainlit_banner.png"
 
 # Load assistant logo directly from URL.
-# logo_file_url = ""
+logo_file_url = "/public/logo.svg"
 
 # Load assistant avatar image directly from URL.
 default_avatar_file_url = ""

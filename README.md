@@ -34,8 +34,6 @@ All application code lives in [`holmes-app/`](./holmes-app/). The migration rati
 - `uv` package manager ([docs.astral.sh](https://docs.astral.sh/uv/getting-started/installation/))
 - An OpenAI API key (or any LiteLLM-supported provider)
 
-For the Kubernetes deployment path you also need: a cluster + `kubectl`, `helm ≥ 3`, `make`, and `jq`.
-
 ## Run locally
 
 ```bash

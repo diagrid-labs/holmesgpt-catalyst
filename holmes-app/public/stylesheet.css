@@ -1,0 +1,16 @@
+/* Override Chainlit's fixed-height constraint on the logo image */
+img[src*="logo.svg"] {
+  height: 90px !important;
+  width: auto !important;
+  max-height: none !important;
+  max-width: none !important;
+}
+
+/* Expand the header container that holds the logo */
+div:has(> img[src*="logo.svg"]),
+.MuiStack-root:has(img[src*="logo.svg"]) {
+  height: auto !important;
+  min-height: 110px !important;
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+}
