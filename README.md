@@ -113,7 +113,6 @@ and building your own images are documented in [`charts/README.md`](charts/READM
 | `setup/argocd-apps.yaml` | Target apps Holmes investigates (`make targets`) |
 | `k8s/grafana-dashboards/` | Grafana dashboard ConfigMaps (`make dashboards`) |
 | `k8s/alerts/` | Alertmanager config + crashloop alert rule |
-| `k8s/agents/holmes-investigator-catalyst.yaml` | Helm-free single-investigator manifest (alternative to `make app`) |
 
 ## Troubleshooting
 

@@ -35,8 +35,21 @@ helm rollback holmes-app 1 -n holmes       # roll back only the app
 ```
 
 `make help` lists everything. Per-cluster knobs are make variables:
-`CATALYST_GRPC/HTTP`, `DNS_LABEL`, `IMAGE_REPO/TAG`, and the `NS_*` namespaces
-(the cross-boundary URLs passed to `make app` track the `NS_*` values).
+`CATALYST_GRPC/HTTP`, `DNS_LABEL`, `IMAGE_REPO/TAG`, and the `NS_*` namespaces.
+In-cluster service URLs (Prometheus / ArgoCD / MCP) live as defaults in
+`charts/holmes-app/values.yaml` — override there if you rename a namespace.
+
+### Deploy without Helm (raw YAML)
+
+There's no hand-maintained plain manifest — generate one from the chart (the
+single source of truth) when you need it:
+
+```bash
+helm template holmes-app charts/holmes-app -n holmes \
+  --set catalyst.grpcEndpoint=<grpc-url> --set catalyst.httpEndpoint=<http-url> \
+  > holmes-app.yaml
+kubectl apply -n holmes -f holmes-app.yaml   # secret must already exist (see pre-flight)
+```
 
 ## Pre-flight (`deploy/bootstrap.sh`, wrapped by `make bootstrap` / `make argocd-token`)
 
