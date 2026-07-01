@@ -110,7 +110,10 @@ and building your own images are documented in [`charts/README.md`](charts/READM
 | `holmes-app/pyproject.toml` | Python deps: pinned `diagrid[holmesgpt]` + `holmesgpt` + uv overrides |
 | `scripts/build-yugabytedb-mcp.sh` | Builds the `yugabytedb-mcp` image (adds `psycopg[binary]`; pushes / `kind load`s) |
 | `docker/agents/holmes-investigator/` | Dockerfile for the investigator image |
-| `k8s/`, `setup/argocd-apps.yaml` | Raw manifests the charts/Makefile supersede |
+| `setup/argocd-apps.yaml` | Target apps Holmes investigates (`make targets`) |
+| `k8s/grafana-dashboards/` | Grafana dashboard ConfigMaps (`make dashboards`) |
+| `k8s/alerts/` | Alertmanager config + crashloop alert rule |
+| `k8s/agents/holmes-investigator-catalyst.yaml` | Helm-free single-investigator manifest (alternative to `make app`) |
 
 ## Troubleshooting
 

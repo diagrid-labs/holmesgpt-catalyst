@@ -41,8 +41,7 @@ RUN uv pip install --system --prerelease=allow --overrides /tmp/overrides.txt \
     'holmesgpt==0.33.0' \
     'chainlit>=2.11.1'
 
-# Build context is holmes-app/ — see image build command in
-# k8s/agents/holmes-investigator.yaml or the project README.
+# Build context is holmes-app/ — see the image build command in charts/README.md.
 COPY app_holmes.py holmes_config.yaml ./
 COPY skills/ ./skills/
 COPY public/ ./public/

@@ -72,7 +72,7 @@ Step-by-step is in the README. Notable non-obvious points:
 
 - **FastMCP DNS-rebinding protection (historical).** Older `mcp.server.fastmcp.FastMCP`-based servers with unset `host` rejected cluster-DNS `Host` headers with 421, needing a server-side `transport_security` patch. The current yugabytedb-mcp uses the standalone `fastmcp` package and no longer hits this, so we don't patch it. Kept for context in case a future MCP server reintroduces the issue.
 - **GitHub MCP null-param rejection.** `github-mcp-server` v1.0.5 rejects null values for optional string fields with `parameter X is not of type string, is <nil>`. The LLM (even `gpt-4o`) tends to serialize unset optionals as null. `SYSTEM_PROMPT_ADDITIONS` in `app_holmes.py` nudges the model to omit them — **this is a partial mitigation, not a fix**. Real fix is upstream (either Holmes scrubbing nulls or the MCP server accepting them). Until then, GitHub-based investigations in-cluster are flaky.
-- **Pulsar 4.x instability on kind.** Latest Pulsar images crashloop under kind's I/O profile (BookKeeper death watcher kills the broker). `k8s/infra/pulsar.yaml` pins `apachepulsar/pulsar:3.3.7`.
+- **Pulsar 4.x instability under tight I/O.** Latest Pulsar images crashloop (BookKeeper death watcher kills the broker). The `holmes-pulsar` chart pins `apachepulsar/pulsar:3.3.7` (`pulsarImage`).
 
 ## Working in this repo
 

@@ -47,14 +47,12 @@ toolsets:
       prometheus_url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
 
 # GitHub MCP server. In-cluster the URL resolves to the github-mcp Service
-# (deployed via k8s/mcp-servers/github-mcp.yaml). For local dev, either:
-#   - port-forward the cluster service:
-#       kubectl port-forward svc/github-mcp 8000:8000
-#     and change the URL below to http://localhost:8000/mcp; OR
-#   - run the MCP server in a local docker container (instructions in the
-#     header comment of app_holmes.py).
-# Holmes auto-tags MCP servers as `core`, so they're picked up by
-# toolset_tags=["core"].
+# (deployed by the holmes-app chart). Holmes auto-tags MCP servers as `core`,
+# so they're picked up by toolset_tags=["core"].
+#
+# NOTE: in-cluster the holmes-app chart mounts a templated copy of this file
+# (charts/holmes-app/templates/configmap-holmes-config.yaml) over it, with MCP
+# URLs driven by chart values — edit both if you change server wiring.
 mcp_servers:
   github:
     description: "GitHub MCP server — repos, PRs, workflows, commits"
