@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Chainlit chat UI ("Durable SRE Investigator") that runs HolmesGPT as a durable workflow on Diagrid Catalyst via Diagrid's `DaprWorkflowHolmesRunner`. HolmesGPT decides which tools to call; Catalyst makes every LLM call and tool invocation a durable workflow activity. The workflow engine and state stores are managed by Catalyst (cloud), not run in-cluster.
 
-All application code lives in `holmes-app/`. Migration rationale and phase plan: `docs/holmesgpt-migration-tradeoffs.md`.
+All application code lives in `holmes-app/`.
 
 ## Local development
 
@@ -57,7 +57,7 @@ There is no test suite, no linter config, and no build step outside the Docker i
 
 **Durability layer** — workflow state, conversation memory, and the per-instance event tape are all persisted to Catalyst managed state stores (`agent-workflow`, `agent-memory`, `agent-registry`, type `state.diagrid` — provisioned in the Catalyst project, not in-cluster). The event tape is append-only; `/replay` and the summarizer both read from it.
 
-**LLM credentials are split intentionally.** HolmesGPT itself uses LiteLLM with env-var credentials (`OPENAI_API_KEY`, `MODEL`). The Catalyst `llm-provider` conversation component is kept for non-investigation flows (e.g. the post-investigation summarizer in `app_holmes.py` is on the LiteLLM path today, but future input guards / embeddings will use `DaprChatClient`). Don't unify these — the split is a deliberate decision recorded in `docs/holmesgpt-migration-tradeoffs.md`.
+**LLM credentials are split intentionally.** HolmesGPT itself uses LiteLLM with env-var credentials (`OPENAI_API_KEY`, `MODEL`). The Catalyst `llm-provider` conversation component is kept for non-investigation flows (e.g. the post-investigation summarizer in `app_holmes.py` is on the LiteLLM path today, but future input guards / embeddings will use `DaprChatClient`). Don't unify these — the split is a deliberate decision.
 
 ## Kubernetes deployment
 

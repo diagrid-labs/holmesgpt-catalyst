@@ -1,41 +1,33 @@
-# Durable SRE Investigator — multi-namespace deploy orchestration.
+# Durable SRE Investigator — Kubernetes deploy orchestration.
 #
-# Each namespace stands in for a cluster boundary: `holmes` is the SRE/agent
-# side; the rest is the observed "workload" side. Each component is its own
-# Helm release, so `make app` / `make yb` / `make pulsar` upgrade ONE thing
-# independently; `make all` does a full bring-up. Override any var inline,
-# e.g.  make app CATALYST_GRPC=… DNS_LABEL=… IMAGE_REPO=…
+# Each component is its own Helm release, so `make app` / `make yb` / `make pulsar`
+# upgrade ONE thing independently; `make all` does a full bring-up. In-cluster
+# service URLs (Prometheus / ArgoCD / MCP) are chart defaults in
+# charts/holmes-app/values.yaml — the Makefile only sets what varies per deploy.
+# Override any var inline, e.g.  make app IMAGE_TAG=v2  |  make all NODE_POOL=control
 
-# ── namespaces (≈ clusters) ──────────────────────────────────────────────────
-NS_HOLMES   ?= holmes
-NS_YB       ?= yugabyte
-NS_PULSAR   ?= pulsar
-NS_MON      ?= monitoring
-NS_ARGOCD   ?= argocd
-NS_PROD     ?= production
+# ── namespaces ───────────────────────────────────────────────────────────────
+NS_HOLMES ?= holmes
+NS_YB     ?= yugabyte
+NS_PULSAR ?= pulsar
+NS_MON    ?= monitoring
+NS_ARGOCD ?= argocd
 
 # ── per-deploy config ────────────────────────────────────────────────────────
-PROJECT       ?= holmesgpt-sre-agent
-APPID         ?= holmes-investigator
-# Catalyst endpoints are NOT hardcoded — derived from the project at deploy time
-# (lazily, only when `make app` needs them). Override explicitly for CI, e.g.
-#   make app CATALYST_GRPC=… CATALYST_HTTP=…
+PROJECT    ?= holmesgpt-sre-agent
+APPID      ?= holmes-investigator
+IMAGE_REPO ?= docker.io/tezizzm/holmes-investigator
+IMAGE_TAG  ?= latest
+DNS_LABEL  ?= demo-holmes-investigator
+NODE_POOL  ?=            # empty = schedule anywhere; e.g. NODE_POOL=control to pin
+BOOTSTRAP  := deploy/bootstrap.sh
+
+# Catalyst endpoints are derived from the project at deploy time (not hardcoded).
+# Override for CI: make app CATALYST_GRPC=… CATALYST_HTTP=…
 CATALYST_GRPC ?= $(shell diagrid project get $(PROJECT) -o json 2>/dev/null | jq -r '.status.endpoints.grpc.url // empty')
 CATALYST_HTTP ?= $(shell diagrid project get $(PROJECT) -o json 2>/dev/null | jq -r '.status.endpoints.http.url // empty')
-DNS_LABEL     ?= demo-holmes-investigator
-IMAGE_REPO    ?= docker.io/tezizzm/holmes-investigator
-IMAGE_TAG     ?= latest
-NODE_POOL     ?=            # empty = schedule anywhere; set to pin (e.g. NODE_POOL=control)
-BOOTSTRAP     := deploy/bootstrap.sh
 
 NODE_SEL := $(if $(NODE_POOL),--set nodeSelector.agentpool=$(NODE_POOL),)
-
-# Cross-boundary endpoints derived from the namespace vars (kept consistent if
-# you change a namespace).
-PROM_URL  := http://kube-prometheus-stack-prometheus.$(NS_MON).svc.cluster.local:9090
-ARGO_SVR  := argocd-server.$(NS_ARGOCD).svc.cluster.local:443
-YB_MCP    := http://yugabytedb-mcp.$(NS_YB).svc.cluster.local:8000/mcp
-SN_MCP    := http://snmcp.$(NS_PULSAR).svc.cluster.local:9090/snmcp/mcp
 
 .DEFAULT_GOAL := help
 .PHONY: help repos bootstrap infra app yb pulsar targets dashboards argocd-token all url uninstall ingress-infra mcp-gateway
@@ -62,9 +54,7 @@ app: ## Upgrade ONLY the investigator + github-mcp (holmes ns)
 	helm upgrade --install holmes-app charts/holmes-app -n $(NS_HOLMES) --create-namespace \
 	  --set investigator.image.repo=$(IMAGE_REPO) --set investigator.image.tag=$(IMAGE_TAG) \
 	  --set investigator.service.dnsLabel=$(DNS_LABEL) \
-	  --set catalyst.grpcEndpoint=$(CATALYST_GRPC) --set catalyst.httpEndpoint=$(CATALYST_HTTP) \
-	  --set toolsets.prometheus.url=$(PROM_URL) --set toolsets.argocd.server=$(ARGO_SVR) \
-	  --set mcp.yugabytedb.url=$(YB_MCP) --set mcp.pulsar.url=$(SN_MCP) $(NODE_SEL)
+	  --set catalyst.grpcEndpoint=$(CATALYST_GRPC) --set catalyst.httpEndpoint=$(CATALYST_HTTP) $(NODE_SEL)
 
 yb: ## Upgrade ONLY yugabytedb-mcp + seed (yugabyte ns)
 	helm upgrade --install holmes-yugabyte charts/holmes-yugabyte -n $(NS_YB) --create-namespace $(NODE_SEL)
@@ -72,7 +62,7 @@ yb: ## Upgrade ONLY yugabytedb-mcp + seed (yugabyte ns)
 pulsar: ## Upgrade ONLY Pulsar + snmcp + seed (pulsar ns)
 	helm upgrade --install holmes-pulsar charts/holmes-pulsar -n $(NS_PULSAR) --create-namespace $(NODE_SEL)
 
-targets: ## Deploy the ArgoCD target apps (api-gateway / auth-service)
+targets: ## Deploy the ArgoCD target apps (api-gateway / auth-service / checkout-api)
 	kubectl apply -f setup/argocd-apps.yaml
 
 dashboards: ## Deploy the Grafana dashboards (monitoring ns)
@@ -91,7 +81,7 @@ uninstall: ## Remove the Holmes releases (keeps infra + namespaces)
 	-helm uninstall holmes-yugabyte -n $(NS_YB)
 	-helm uninstall holmes-pulsar -n $(NS_PULSAR)
 
-# ── Catalyst MCP-gateway exposure (cloud region only) ────────────────────────
+# ── Catalyst MCP-gateway exposure (optional; cloud region only) ───────────────
 MCP_DNS_LABEL ?= holmes-mcp-demo
 
 ingress-infra: ## Install ingress-nginx (+health-probe fix) + cert-manager for MCP exposure

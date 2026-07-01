@@ -15,7 +15,7 @@ limitations under the License.
 
 A Chainlit chat UI that runs [HolmesGPT](https://holmesgpt.dev) as a durable workflow on [Diagrid Catalyst](https://www.diagrid.io/catalyst) via Diagrid's `DaprWorkflowHolmesRunner`. A single investigator service replaces the previous fleet of per-domain agents — HolmesGPT decides which tools to call (Kubernetes, ArgoCD, Grafana, Prometheus, GitHub, YugabyteDB, Pulsar, Bash, …) and Catalyst makes every LLM call and tool invocation a durable workflow activity. Catalyst is a managed service — the workflow engine and state stores live in the Catalyst cloud, not in your cluster.
 
-All application code lives in [`holmes-app/`](./holmes-app/). The migration rationale is documented in [`docs/holmesgpt-migration-tradeoffs.md`](./docs/holmesgpt-migration-tradeoffs.md).
+All application code lives in [`holmes-app/`](./holmes-app/).
 
 ## How it works
 
@@ -27,61 +27,23 @@ All application code lives in [`holmes-app/`](./holmes-app/). The migration rati
 
 ## Prerequisites
 
-- Python ≥ 3.11 ([python.org](https://www.python.org/downloads/))
-- Docker ([docs.docker.com](https://docs.docker.com/get-docker/))
-- A Diagrid Catalyst account [catalyst.diagrid.io/](https://catalyst.r1.diagrid.io/)
-- Diagrid CLI ([docs.diagrid.io](https://docs.diagrid.io/catalyst/)) + `diagrid login`
-- `uv` package manager ([docs.astral.sh](https://docs.astral.sh/uv/getting-started/installation/))
+- A Kubernetes cluster + `kubectl` (any cluster with outbound HTTPS to Catalyst)
+- `helm ≥ 3` and `jq`
+- A Diagrid Catalyst account + Diagrid CLI ([docs.diagrid.io](https://docs.diagrid.io/catalyst/)), then `diagrid login`
 - An OpenAI API key (or any LiteLLM-supported provider)
 
-## Run locally
-
-```bash
-cd holmes-app
-uv sync                        # creates a dedicated venv with diagrid[holmesgpt]
-
-export OPENAI_API_KEY=sk-...
-export MODEL=gpt-4o-mini        # optional, this is the default
-
-# Get these values from: diagrid appid get holmes-investigator --project <project>
-export DAPR_GRPC_ENDPOINT="https://grpc-<project>.<region>.diagrid.io:443"
-export DAPR_HTTP_ENDPOINT="https://http-<project>.<region>.diagrid.io:443"
-export DAPR_API_TOKEN="diagrid://..."
-
-uv run chainlit run app_holmes.py --port 8000 --host 0.0.0.0
-```
-
-> The App ID + managed components must exist in your Catalyst project first.
-> Run `make bootstrap` (or `diagrid appid create holmes-investigator --project <project>`)
-> once — the same App ID works for local dev and in-cluster.
-
-Open <http://localhost:8000>.
-
-### Optional: enable the GitHub toolset
-
-`holmes-app/holmes_config.yaml` is pre-configured to reach a local GitHub MCP server at `http://localhost:8765/mcp`. Start one with:
-
-```bash
-export GITHUB_TOKEN=ghp_...     # PAT with repo + workflow read scopes
-
-docker run -d --name github-mcp --rm -p 8765:8000 \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN=$GITHUB_TOKEN \
-  ghcr.io/github/github-mcp-server \
-  --read-only --toolsets=actions,pull_requests,repos http --port=8000
-```
-
-If you skip this, the GitHub toolset stays disabled at startup and Holmes uses only its other built-in toolsets.
+The container images are prebuilt on Docker Hub — you only need Docker if you want to build your own (see [`charts/README.md`](charts/README.md)).
 
 ## Skills
 
-Each `SKILL.md` under `holmes-app/skills/<name>/` is a procedural runbook keyed by `description` in the YAML frontmatter. HolmesGPT lists them in the system prompt and fetches the matching one when a user asks an aligned question. The format is documented in [`holmes-app/.venv/lib/.../holmes/plugins/skills/README.md`](https://github.com/robusta-dev/holmesgpt/tree/master/holmes/plugins/skills) and the authoring template lives in that plugin's `CLAUDE.md`. Two ship in this repo:
+Each `SKILL.md` under `holmes-app/skills/<name>/` is a procedural runbook keyed by `description` in the YAML frontmatter. HolmesGPT lists them in the system prompt and fetches the matching one when a user asks an aligned question. The format is documented [upstream in HolmesGPT](https://github.com/robusta-dev/holmesgpt/tree/master/holmes/plugins/skills). Skills ship in the image, so add one under `holmes-app/skills/<name>/`, rebuild, and `make app`:
 
 | Skill | Triggers on |
 | --- | --- |
 | `api-gateway-latency-spike` | "api-gateway p99 latency", SLO breaches, HTTP 504s, upstream timeouts |
 | `auth-service-crashloopbackoff` | "auth-service crashing", CrashLoopBackOff, OOMKilled, cascading 401 errors |
 
-Add a new skill by creating `holmes-app/skills/<name>/SKILL.md` — Holmes picks it up on next start. No registration required.
+No registration step — the skill is discovered by its `description`; just rebuild the image and redeploy with `make app`.
 
 ## Deploy to Kubernetes
 
@@ -154,17 +116,15 @@ and building your own images are documented in [`charts/README.md`](charts/READM
 | `holmes-app/app_holmes.py` | Chainlit handler + `DaprWorkflowHolmesRunner` setup |
 | `holmes-app/holmes_config.yaml` | Base HolmesGPT config (the chart mounts a templated copy in-cluster) |
 | `holmes-app/skills/` | Per-incident `SKILL.md` runbooks |
-| `holmes-app/pyproject.toml` | Holmes venv: pinned `diagrid[holmesgpt]` + uv overrides |
+| `holmes-app/pyproject.toml` | Python deps: pinned `diagrid[holmesgpt]` + `holmesgpt` + uv overrides |
 | `scripts/build-yugabytedb-mcp.sh` | Builds the `yugabytedb-mcp` image (adds `psycopg[binary]`; pushes / `kind load`s) |
 | `docker/agents/holmes-investigator/` | Dockerfile for the investigator image |
 | `k8s/`, `setup/argocd-apps.yaml` | Raw manifests the charts/Makefile supersede |
-| `docs/holmesgpt-migration-tradeoffs.md` | Architecture decisions, phase plan, tradeoffs |
 
 ## Troubleshooting
 
-- **`uv sync` reports a dependency conflict.** `holmes-app/pyproject.toml` carries `[tool.uv] override-dependencies` for `fastapi`, `uvicorn`, `cachetools`, `mcp`. Make sure you're running `uv sync` from inside `holmes-app/`, not from the repo root. The Holmes venv must stay isolated.
 - **The app hangs at startup / `durabletask-worker` can't connect.** It can't reach Catalyst. Check `DAPR_GRPC_ENDPOINT` / `DAPR_HTTP_ENDPOINT` point at your project's URLs (`diagrid appid get …`) and `DAPR_API_TOKEN` is the App ID's `diagrid://…` token. The managed components must be `ready` (`diagrid component list`), which requires the App ID to exist (run `make bootstrap`).
-- **Chainlit reports `Too many packets in payload` on UI open.** Stale Socket.IO session. Hard-refresh the browser (Cmd+Shift+R) or delete `holmes-app/.files/` and restart.
+- **Chainlit reports `Too many packets in payload` on UI open.** Stale Socket.IO session — hard-refresh the browser (Cmd+Shift+R), or open in a private window.
 - **`fetch_skill` succeeds but `bash` calls hit "Command requires approval".** The command isn't on HolmesGPT's bash allowlist. Add it under `toolsets.bash.config.allow` in `holmes-app/holmes_config.yaml`. The repo already allows the common read-only `argocd app *` commands.
 - **HolmesGPT decides nothing matches an incident.** Check that the SKILL.md's `description:` frontmatter explicitly mentions the symptom terms your users will use ("p99 latency spike", "CrashLoopBackOff"). The description is the only signal it has for matching.
 - **`argocd/core` toolset fails with `too many colons in address`.** `ARGOCD_SERVER` (a `holmes-app` value, default set by `make app`) has an `https://` scheme prefix. It must be `host:port` only — the argocd CLI prepends its own scheme.
@@ -172,4 +132,4 @@ and building your own images are documented in [`charts/README.md`](charts/READM
 - **Pulsar pod crashloops with `BookKeeper death watcher`-triggered shutdowns.** The latest Pulsar image (4.x) is unstable under tight I/O — the `holmes-pulsar` chart pins `apachepulsar/pulsar:3.3.7` (`pulsarImage`).
 - **YugabyteDB writes rejected with "insufficient disk space".** YugabyteDB's disk-full guard rejects writes when free space is under ~1GiB, so a 1Gi PVC never works — the chart provisions 10Gi (`deploy/values/yugabyte.yaml`).
 - **YugabyteDB `summarize_database` returns no info.** The seed (run by `make yb`) creates the demo tables — if it didn't complete, the `yugabyte` database is empty. If you point `YUGABYTEDB_URL` at a different database, re-apply `GRANT SELECT` for `holmes_ro` there (schema-level grants don't cross databases).
-- **GitHub MCP rejects calls with `parameter X is not of type string, is <nil>`.** The github-mcp-server's parameter validation rejects null values for optional string fields, and the LLM (even `gpt-4o`) tends to serialize optional params as `null` defaults. `app_holmes.py` ships a `SYSTEM_PROMPT_ADDITIONS` block nudging the LLM to omit unset optional params — this **partially mitigates** the problem but doesn't fully solve it. The real fix is upstream (either HolmesGPT scrubbing nulls before MCP forwarding, or the MCP server accepting nulls). See `docs/holmesgpt-migration-tradeoffs.md` for full context.
+- **GitHub MCP rejects calls with `parameter X is not of type string, is <nil>`.** The github-mcp-server's parameter validation rejects null values for optional string fields, and the LLM (even `gpt-4o`) tends to serialize optional params as `null` defaults. `app_holmes.py` ships a `SYSTEM_PROMPT_ADDITIONS` block nudging the LLM to omit unset optional params — this **partially mitigates** the problem but doesn't fully solve it. The real fix is upstream (either HolmesGPT scrubbing nulls before MCP forwarding, or the MCP server accepting nulls).
