@@ -31,16 +31,17 @@ In this cluster the `auth-service` is deployed as the **`auth-service-nginx`** D
      - Log lines mentioning "killed", exit code 137, or no orderly shutdown → likely OOM (step 3).
      - Configuration parse error or missing-key error → configuration change (step 4).
 
-3. **Check memory usage trend in Grafana.**
-   - Action: Query the `auth-service-overview` Grafana dashboard for pod memory usage over the last hour.
-   - Parameters: dashboard `auth-service-overview`, panel for pod memory bytes.
+3. **Check the memory usage trend (Prometheus).**
+   - Action: Use the `prometheus` toolset to query pod memory over the last hour — e.g. `container_memory_working_set_bytes{namespace="production", pod=~"auth-service-nginx.*"}` as a range query — and compare against the container's `resources.limits.memory`.
+   - Note: query metrics through the **`prometheus`** toolset (the authoritative source). Grafana just visualizes this same data; if the `grafana/dashboards` toolset is enabled you may also pull up the `auth-service-overview` dashboard for a visual, but do not block on Grafana access.
    - Expected Output: memory trend per pod, especially the values immediately before each restart.
-   - Success/Failure Criteria: a sawtooth pattern (memory climbs to a ceiling, then drops as the pod restarts) confirms OOMKilled. Flat memory with sudden crashes points back to code or config (step 4).
+   - Success/Failure Criteria: a sawtooth pattern (memory climbs to the limit, then drops as the pod restarts) confirms OOMKilled. Flat memory with sudden crashes points back to code or config (step 4).
 
-4. **Examine recent ConfigMap and Secret changes.**
-   - Action: Inspect the ArgoCD diff view for the `auth-service` app, focusing on ConfigMap and Secret resources changed in the last 24 hours.
-   - Parameters: app name `auth-service`, resource kinds `ConfigMap` and `Secret`.
-   - Expected Output: any modified keys/values in configuration objects bound to the deployment.
+4. **Examine recent ConfigMap changes.**
+   - Action: Inspect the ArgoCD diff view for the `auth-service` app, focusing on ConfigMap resources changed in the last 24 hours.
+   - Parameters: app name `auth-service`, resource kind `ConfigMap`.
+   - Note: **Secrets are intentionally out of scope** — the investigator's RBAC excludes `secrets` by design (it must never read credential values), so do not attempt to read Secrets; a permissions error there is expected, not a finding. Use the ArgoCD diff to detect that a Secret *changed* (name/revision) without reading its contents.
+   - Expected Output: any modified keys/values in ConfigMaps bound to the deployment.
    - Success/Failure Criteria: a config change correlated with the first crash time strongly suggests configuration as the cause — branch to step 6 (rollback) with a focus on the changed object.
 
 5. **Check pod events and resource limits.**
