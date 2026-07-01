@@ -201,9 +201,10 @@ docker-entrypoint-initdb.d/
 **/.files/
 holmes-app/chainlit.md
 
-# Kubernetes secrets (contains credentials — never commit)
+# Kubernetes secrets / configs that contain credentials — never commit
 k8s/secret.yaml
 k8s/alerts/alertmanager-slack-secret.yaml
+k8s/alerts/alertmanager-config.yaml
 
 # IDE settings
 .vscode/

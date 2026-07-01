@@ -1,6 +1,5 @@
-# Alertmanager configuration. Slack webhook URL is read from the
-# alertmanager-slack-webhook Secret via $SLACK_WEBHOOK_URL env var.
-# Apply: kubectl apply -f k8s/alerts/alertmanager-slack-secret.yaml -f k8s/alerts/alertmanager-config.yaml
+# Alertmanager configuration. Slack webhook URL is inlined here — this file is
+# gitignored (see .gitignore). Apply: kubectl apply -f k8s/alerts/alertmanager-config.yaml
 apiVersion: v1
 kind: Secret
 metadata:
@@ -10,7 +9,7 @@ stringData:
   alertmanager.yaml: |
     global:
       resolve_timeout: 1m
-      slack_api_url: '${SLACK_WEBHOOK_URL}'
+      slack_api_url: 'SLACK_WEBHOOK_URL_REDACTED'
 
     inhibit_rules:
       - equal: [namespace, alertname]
@@ -29,7 +28,7 @@ stringData:
       group_by: [alertname, namespace, pod]
       group_wait: 30s
       group_interval: 5m
-      repeat_interval: 12h
+      repeat_interval: 15m
       routes:
         - matchers: [alertname = "KubePodCrashLooping"]
           receiver: slack-notifications
