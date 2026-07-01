@@ -1,19 +1,10 @@
-<!--
-Copyright 2026 The Dapr Authors
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
--->
+# HolmesGPT Durable SRE Agent
 
-# Durable SRE Investigator
+A durable SRE Agent that uses the open-source [HolmesGPT](https://holmesgpt.dev) agent, as a durable workflow on [Diagrid Catalyst](https://www.diagrid.io/catalyst).  A single investigator agent is used to investigate a set of sample failing apps and HolmesGPT decides which tools to call (Kubernetes, ArgoCD, Grafana, Prometheus, GitHub, YugabyteDB, Pulsar, Bash, …). Diagrid Catalyst wraps every LLM call and tool invocation in a durable workflow activity, providing durable execution to the entire system, ensuring that when calls fail or pods go down, the investigation runs to completion without expensively retrying the LLM.
 
-A Chainlit chat UI that runs [HolmesGPT](https://holmesgpt.dev) as a durable workflow on [Diagrid Catalyst](https://www.diagrid.io/catalyst) via Diagrid's `DaprWorkflowHolmesRunner`. A single investigator service replaces the previous fleet of per-domain agents — HolmesGPT decides which tools to call (Kubernetes, ArgoCD, Grafana, Prometheus, GitHub, YugabyteDB, Pulsar, Bash, …) and Catalyst makes every LLM call and tool invocation a durable workflow activity. Catalyst is a managed service — the workflow engine and state stores live in the Catalyst cloud, not in your cluster.
+This sample is using Catalyst Cloud, where Catalyst runs as a managed service and the workflow engine and state store is hosted by Diagrid, and nothing additional is running on your Kubernetes cluster. 
+
+![HolmesGPT Durable SRE Agent architecture](HolmesGPT_architecture.png)
 
 All application code lives in [`holmes-app/`](./holmes-app/).
 
