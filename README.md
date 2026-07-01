@@ -33,6 +33,7 @@ Each `SKILL.md` under `holmes-app/skills/<name>/` is a procedural runbook keyed 
 | --- | --- |
 | `api-gateway-latency-spike` | "api-gateway p99 latency", SLO breaches, HTTP 504s, upstream timeouts |
 | `auth-service-crashloopbackoff` | "auth-service crashing", CrashLoopBackOff, OOMKilled, cascading 401 errors |
+| `checkout-api-imagepullbackoff` | "checkout-api won't start", ImagePullBackOff, ErrImagePull, "image not found", pods stuck Pending/PodInitializing after a deploy |
 
 No registration step — the skill is discovered by its `description`; just rebuild the image and redeploy with `make app`.
 
