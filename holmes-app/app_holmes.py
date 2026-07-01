@@ -281,10 +281,6 @@ def render_summary_markdown(summary: Dict[str, Any]) -> str:
 async def set_starters() -> list[cl.Starter]:
     return [
         cl.Starter(
-            label="Skill: api-gateway latency",
-            message="api-gateway p99 latency is spiking past 2s. What's the runbook?",
-        ),
-        cl.Starter(
             label="Skill: auth-service crashing",
             message="auth-service pods are in CrashLoopBackOff. How do I triage?",
         ),
