@@ -10,7 +10,7 @@ investigator:
     tag: latest
     pullPolicy: Always
   replicas: 1
-  model: gpt-4o-mini
+  model: gpt-4o   # gpt-4o-mini is too weak at multi-step tool selection (mis-picks tools)
   eventsStore: agent-workflow
   # Per-tool-subprocess virtual-memory cap (ulimit -v). The HolmesGPT default
   # (800 on x86_64) OOM-kills Go tools like kubectl at startup; raise it.
