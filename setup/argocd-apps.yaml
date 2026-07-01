@@ -60,3 +60,33 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+---
+# Demo scenario #2 — bad image tag from a deploy. The pods can never pull the
+# image and stay in ImagePullBackOff; the ONLY fault is the nonexistent tag, so
+# the root cause is unambiguous and deterministic (good for a reliable demo).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: checkout-api
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://charts.bitnami.com/bitnami
+    chart: nginx
+    targetRevision: 22.6.11
+    helm:
+      parameters:
+        - name: replicaCount
+          value: "1"
+        - name: image.tag
+          value: "1.0.0-does-not-exist"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: production
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
