@@ -37,6 +37,8 @@ spec:
               value: {{ required "catalyst.httpEndpoint is required (set via `make app` or --set catalyst.httpEndpoint=…)" .Values.catalyst.httpEndpoint | quote }}
             - name: MODEL
               value: {{ .Values.investigator.model | quote }}
+            - name: SUMMARY_MODEL
+              value: {{ .Values.investigator.summaryModel | default .Values.investigator.model | quote }}
             - name: HOLMES_EVENTS_STORE
               value: {{ .Values.investigator.eventsStore | quote }}
             {{- if .Values.investigator.toolMemoryLimitMB }}

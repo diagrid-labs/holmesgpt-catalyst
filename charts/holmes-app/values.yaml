@@ -11,6 +11,9 @@ investigator:
     pullPolicy: Always
   replicas: 1
   model: gpt-4o   # gpt-4o-mini is too weak at multi-step tool selection (mis-picks tools)
+  # Post-investigation summarizer model. Defaults to `model` if unset; keep it off
+  # gpt-4o-mini, which confabulates failures (e.g. false "access denied") in summaries.
+  summaryModel: gpt-4o
   eventsStore: agent-workflow
   # Per-tool-subprocess virtual-memory cap (ulimit -v). The HolmesGPT default
   # (800 on x86_64) OOM-kills Go tools like kubectl at startup; raise it.
