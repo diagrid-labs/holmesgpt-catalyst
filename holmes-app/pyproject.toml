@@ -4,6 +4,10 @@ version = "0.1.0"
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "diagrid[holmesgpt]==0.4.2",
+    # Pin holmesgpt: diagrid 0.4.2's registry calls get_all_tools_openai_format(
+    # include_restricted=...), which was REMOVED in holmesgpt 0.34.0 (crashes
+    # runner.start()). 0.33.0 is the newest version that still has the kwarg.
+    "holmesgpt==0.33.0",
     "chainlit>=2.0.0",
 ]
 
