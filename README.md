@@ -1,8 +1,8 @@
 # HolmesGPT Durable SRE Agent
 
-A durable SRE Agent that uses the open-source [HolmesGPT](https://holmesgpt.dev) agent, as a durable workflow on [Diagrid Catalyst](https://www.diagrid.io/catalyst).  A single investigator agent is used to investigate a set of sample failing apps and HolmesGPT decides which tools to call (Kubernetes, ArgoCD, Grafana, Prometheus, GitHub, YugabyteDB, Pulsar, Bash, …). Diagrid Catalyst wraps every LLM call and tool invocation in a durable workflow activity, providing durable execution to the entire system, ensuring that when calls fail or pods go down, the investigation runs to completion without expensively retrying the LLM.
+A durable SRE Agent that uses the open-source [HolmesGPT](https://holmesgpt.dev) agent, as a durable workflow on [Diagrid](https://www.diagrid.io/catalyst).  A single investigator agent is used to investigate a set of sample failing apps and HolmesGPT decides which tools to call (Kubernetes, ArgoCD, Grafana, Prometheus, GitHub, YugabyteDB, Pulsar, Bash, …). Diagrid wraps every LLM call and tool invocation in a durable workflow activity, providing durable execution to the entire system, ensuring that when calls fail or pods go down, the investigation runs to completion without expensively retrying the LLM.
 
-This sample is using Catalyst Cloud, where Catalyst runs as a managed service and the workflow engine and state store is hosted by Diagrid, and nothing additional is running on your Kubernetes cluster. 
+This sample is using Diagrid Cloud, where Diagrid runs as a managed service and the workflow engine and state store is hosted by Diagrid, and nothing additional is running on your Kubernetes cluster. 
 
 ![HolmesGPT Durable SRE Agent architecture](HolmesGPT_architecture.png)
 
@@ -13,14 +13,14 @@ All application code lives in [`holmes-app/`](./holmes-app/).
 - `holmes-app/app_holmes.py` is the Chainlit handler. It instantiates a single `DaprWorkflowHolmesRunner` at startup and streams events from the workflow's event tape into the UI as Chainlit steps.
 - `holmes-app/holmes_config.yaml` configures HolmesGPT's toolsets, MCP servers, and custom skill paths.
 - `holmes-app/skills/` holds per-incident runbooks as `SKILL.md` files. HolmesGPT matches incoming questions to a skill by description, fetches the body via the `fetch_skill` tool, and follows the workflow it prescribes.
-- Workflow state, conversation memory, and the event tape are all persisted via Catalyst managed state stores (`agent-workflow`, `agent-memory`, `agent-registry`, type `state.diagrid`) — provisioned in the Catalyst project, not in-cluster.
-- LLM access goes directly through LiteLLM (env-var credentials). The `llm-provider` Catalyst conversation component is retained for non-investigation LLM flows (e.g. the planned post-investigation summary in Phase 5).
+- Workflow state, conversation memory, and the event tape are all persisted via Diagrid managed state stores (`agent-workflow`, `agent-memory`, `agent-registry`, type `state.diagrid`) — provisioned in the Diagrid project, not in-cluster.
+- LLM access goes directly through LiteLLM (env-var credentials). The `llm-provider` Diagrid conversation component is retained for non-investigation LLM flows (e.g. the planned post-investigation summary in Phase 5).
 
 ## Prerequisites
 
-- A Kubernetes cluster + `kubectl` (any cluster with outbound HTTPS to Catalyst)
+- A Kubernetes cluster + `kubectl` (any cluster with outbound HTTPS to Diagrid)
 - `helm ≥ 3` and `jq`
-- A Diagrid Catalyst account + Diagrid CLI ([docs.diagrid.io](https://docs.diagrid.io/catalyst/)), then `diagrid login`
+- A Diagrid account + Diagrid CLI ([docs.diagrid.io](https://docs.diagrid.io/concepts/what-is-diagrid/)), then `diagrid login`
 - An OpenAI API key (or any LiteLLM-supported provider)
 
 The container images are prebuilt on Docker Hub — you only need Docker if you want to build your own (see [`charts/README.md`](charts/README.md)).
@@ -42,7 +42,7 @@ No registration step — the skill is discovered by its `description`; just rebu
 One command brings up the whole demo. Each namespace stands in for a **cluster
 boundary** — `holmes` is the agent side; `yugabyte` / `pulsar` / `monitoring` /
 `argocd` / `production` are the workload side Holmes investigates. The workflow
-engine and state stores are managed by **Diagrid Catalyst**, so nothing additional needs to be installed on the cluster.
+engine and state stores are managed by **Diagrid**, so nothing additional needs to be installed on the cluster.
 
 **You need:** `kubectl` (pointed at any cluster), `helm ≥ 3`, the Diagrid CLI
 (`diagrid login`), and `jq`. The container images are prebuilt on Docker Hub —
@@ -57,7 +57,7 @@ make all
 
 `make all` runs, in order:
 
-1. **`make bootstrap`** — creates the Catalyst project + `holmes-investigator` App ID and writes the `sre-agent-secrets` Secret into the `holmes` and `yugabyte` namespaces.
+1. **`make bootstrap`** — creates the Diagrid project + `holmes-investigator` App ID and writes the `sre-agent-secrets` Secret into the `holmes` and `yugabyte` namespaces.
 2. **`make infra`** — installs ArgoCD, Prometheus/Grafana, and YugabyteDB (upstream charts).
 3. **`make yb` / `make pulsar`** — `yugabytedb-mcp` and Pulsar + `snmcp`, each next to the data it fronts.
 4. **`make app`** — the investigator + `github-mcp`.
@@ -103,7 +103,7 @@ and building your own images are documented in [`charts/README.md`](charts/READM
 | `charts/holmes-yugabyte/` | Helm chart: `yugabytedb-mcp` + seed (the `yugabyte` namespace) |
 | `charts/holmes-pulsar/` | Helm chart: Pulsar + `snmcp` + seed (the `pulsar` namespace) |
 | `charts/README.md` | Chart layout, MCP placement, per-cluster knobs |
-| `deploy/bootstrap.sh` | Non-K8s pre-flight: Catalyst App ID + secrets + ArgoCD token |
+| `deploy/bootstrap.sh` | Non-K8s pre-flight: Diagrid App ID + secrets + ArgoCD token |
 | `deploy/values/` | Infra subchart overrides (Yugabyte 10Gi) |
 | `holmes-app/app_holmes.py` | Chainlit handler + `DaprWorkflowHolmesRunner` setup |
 | `holmes-app/holmes_config.yaml` | Base HolmesGPT config (the chart mounts a templated copy in-cluster) |
@@ -117,7 +117,7 @@ and building your own images are documented in [`charts/README.md`](charts/READM
 
 ## Troubleshooting
 
-- **The app hangs at startup / `durabletask-worker` can't connect.** It can't reach Catalyst. Check `DAPR_GRPC_ENDPOINT` / `DAPR_HTTP_ENDPOINT` point at your project's URLs (`diagrid appid get …`) and `DAPR_API_TOKEN` is the App ID's `diagrid://…` token. The managed components must be `ready` (`diagrid component list`), which requires the App ID to exist (run `make bootstrap`).
+- **The app hangs at startup / `durabletask-worker` can't connect.** It can't reach Diagrid. Check `DAPR_GRPC_ENDPOINT` / `DAPR_HTTP_ENDPOINT` point at your project's URLs (`diagrid appid get …`) and `DAPR_API_TOKEN` is the App ID's `diagrid://…` token. The managed components must be `ready` (`diagrid component list`), which requires the App ID to exist (run `make bootstrap`).
 - **Chainlit reports `Too many packets in payload` on UI open.** Stale Socket.IO session — hard-refresh the browser (Cmd+Shift+R), or open in a private window.
 - **`fetch_skill` succeeds but `bash` calls hit "Command requires approval".** The command isn't on HolmesGPT's bash allowlist. Add it under `toolsets.bash.config.allow` in `holmes-app/holmes_config.yaml`. The repo already allows the common read-only `argocd app *` commands.
 - **HolmesGPT decides nothing matches an incident.** Check that the SKILL.md's `description:` frontmatter explicitly mentions the symptom terms your users will use ("p99 latency spike", "CrashLoopBackOff"). The description is the only signal it has for matching.

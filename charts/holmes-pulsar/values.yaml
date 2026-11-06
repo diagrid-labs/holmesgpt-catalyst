@@ -10,5 +10,5 @@ snmcpImage: streamnative/snmcp:latest
 seed:
   enabled: true
 
-# snmcp serves at this path (also the ingress route prefix for Catalyst).
+# snmcp serves at this path (also the ingress route prefix for Diagrid).
 snmcpHttpPath: /snmcp/mcp

@@ -53,7 +53,7 @@ kubectl apply -n holmes -f holmes-app.yaml   # secret must already exist (see pr
 
 ## Pre-flight (`deploy/bootstrap.sh`, wrapped by `make bootstrap` / `make argocd-token`)
 
-The non-K8s bits: creates the Catalyst App ID, the `sre-agent-secrets` Secret in
+The non-K8s bits: creates the Diagrid App ID, the `sre-agent-secrets` Secret in
 **both** the `holmes` and `yugabyte` namespaces (each with the keys that side
 needs), and — after ArgoCD is up — mints the ArgoCD API token into the holmes
 secret and restarts the app.

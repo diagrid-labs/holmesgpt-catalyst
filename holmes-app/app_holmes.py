@@ -5,7 +5,7 @@ Run:
     uv sync
     export OPENAI_API_KEY=...
     export MODEL=gpt-4o-mini
-    # Connect to your Catalyst project (no local Dapr runtime). Values from:
+    # Connect to your Diagrid project (no local Dapr runtime). Values from:
     #   diagrid appid get holmes-investigator --project <project>
     export DAPR_GRPC_ENDPOINT=https://grpc-<project>.<region>.diagrid.io:443
     export DAPR_HTTP_ENDPOINT=https://http-<project>.<region>.diagrid.io:443
@@ -131,7 +131,7 @@ logger.info("DaprWorkflowHolmesRunner started (model=%s, max_steps=%d)", MODEL, 
 def replay_tool(instance_id: str, seq: int) -> Dict[str, Any]:
     """Replay a single tool call from a past investigation.
 
-    Reads the `start_tool_calling` event at the given seq off the Catalyst-backed
+    Reads the `start_tool_calling` event at the given seq off the Diagrid-backed
     event tape, looks up the named tool in the current registry's executor,
     and invokes it with the recorded params. No LLM call, no workflow.
 

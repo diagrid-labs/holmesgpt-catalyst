@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Pre-flight for the multi-namespace deploy — the bits Helm can't do: the
-# Catalyst App ID, the secrets (in two namespaces), and the ArgoCD token.
+# Diagrid App ID, the secrets (in two namespaces), and the ArgoCD token.
 #
 #   ./deploy/bootstrap.sh pre            # App ID + namespaces + secrets  (BEFORE the helm installs)
 #   ./deploy/bootstrap.sh argocd-token   # ArgoCD token -> secret + restart (AFTER infra is up)
@@ -23,7 +23,7 @@ ns() { kubectl create namespace "$1" --dry-run=client -o yaml | kubectl apply -f
 
 pre() {
   : "${OPENAI_API_KEY:?OPENAI_API_KEY is required}"
-  echo ">> Catalyst project + App ID ($PROJECT / $APPID)"
+  echo ">> Diagrid project + App ID ($PROJECT / $APPID)"
   diagrid project get "$PROJECT" >/dev/null 2>&1 || diagrid project create "$PROJECT" --wait
   diagrid appid get "$APPID" --project "$PROJECT" >/dev/null 2>&1 || diagrid appid create "$APPID" --project "$PROJECT" --wait
   TOKEN=$(diagrid appid get "$APPID" --project "$PROJECT" -o json | jq -r .status.apiToken)

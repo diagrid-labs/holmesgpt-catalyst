@@ -22,7 +22,7 @@ DNS_LABEL  ?= demo-holmes-investigator
 NODE_POOL  ?=            # empty = schedule anywhere; e.g. NODE_POOL=control to pin
 BOOTSTRAP  := deploy/bootstrap.sh
 
-# Catalyst endpoints are derived from the project at deploy time (not hardcoded).
+# Diagrid endpoints are derived from the project at deploy time (not hardcoded).
 # Override for CI: make app CATALYST_GRPC=… CATALYST_HTTP=…
 CATALYST_GRPC ?= $(shell diagrid project get $(PROJECT) -o json 2>/dev/null | jq -r '.status.endpoints.grpc.url // empty')
 CATALYST_HTTP ?= $(shell diagrid project get $(PROJECT) -o json 2>/dev/null | jq -r '.status.endpoints.http.url // empty')
@@ -41,7 +41,7 @@ repos: ## Add/update upstream Helm repos
 	@helm repo add yugabytedb https://charts.yugabyte.com >/dev/null 2>&1 || true
 	@helm repo update >/dev/null
 
-bootstrap: ## Pre-flight: Catalyst App ID + namespaces + secrets (needs OPENAI_API_KEY)
+bootstrap: ## Pre-flight: Diagrid App ID + namespaces + secrets (needs OPENAI_API_KEY)
 	NS_HOLMES=$(NS_HOLMES) NS_YB=$(NS_YB) NS_ARGOCD=$(NS_ARGOCD) PROJECT=$(PROJECT) APPID=$(APPID) $(BOOTSTRAP) pre
 
 infra: repos ## Install/upgrade ArgoCD, Prometheus, YugabyteDB (each in its namespace)
@@ -81,7 +81,7 @@ uninstall: ## Remove the Holmes releases (keeps infra + namespaces)
 	-helm uninstall holmes-yugabyte -n $(NS_YB)
 	-helm uninstall holmes-pulsar -n $(NS_PULSAR)
 
-# ── Catalyst MCP-gateway exposure (optional; cloud region only) ───────────────
+# ── Diagrid MCP-gateway exposure (optional; cloud region only) ───────────────
 MCP_DNS_LABEL ?= holmes-mcp-demo
 
 ingress-infra: ## Install ingress-nginx (+health-probe fix) + cert-manager for MCP exposure
