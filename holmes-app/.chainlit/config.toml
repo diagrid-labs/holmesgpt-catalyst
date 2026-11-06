@@ -117,7 +117,7 @@ default_sidebar_state = "open"  # Options: "open", "closed", "hidden"
 confirm_new_chat = true
 
 # Description of the assistant. This is used for HTML tags.
-description = "Built with Diagrid Catalyst and HolmesGPT"
+description = "Built with Diagrid and HolmesGPT"
 
 # Chain of Thought (CoT) display mode. Can be "hidden", "tool_call" or "full".
 cot = "full"

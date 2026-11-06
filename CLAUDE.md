@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A Chainlit chat UI ("Durable SRE Investigator") that runs HolmesGPT as a durable workflow on Diagrid Catalyst via Diagrid's `DaprWorkflowHolmesRunner`. HolmesGPT decides which tools to call; Catalyst makes every LLM call and tool invocation a durable workflow activity. The workflow engine and state stores are managed by Catalyst (cloud), not run in-cluster.
+A Chainlit chat UI ("Durable SRE Investigator") that runs HolmesGPT as a durable workflow on Diagrid using Diagrid's `DaprWorkflowHolmesRunner`. HolmesGPT decides which tools to call; Diagrid makes every LLM call and tool invocation a durable workflow activity. The workflow engine and state stores are managed by Diagrid (cloud), not run in-cluster.
 
 All application code lives in `holmes-app/`.
 
@@ -46,7 +46,7 @@ There is no test suite, no linter config, and no build step outside the Docker i
 - Streams the runner's event tape (`workflow_started`, `start_tool_calling`, `tool_calling_result`, `ai_answer_end`, `workflow_completed`) into Chainlit `cl.Step` blocks tagged with each event's `seq`.
 - Appends `SYSTEM_PROMPT_ADDITIONS` to every investigation — a partial mitigation for the GitHub MCP server's null-param rejection (see "Known upstream issues" below).
 - Runs a post-investigation summary via a separate LiteLLM call (`SUMMARY_MODEL`, default `gpt-4o-mini`). Disable with `SUMMARY_ENABLED=false`.
-- `/replay <instance_id> <seq>` slash command reads a `start_tool_calling` event off the Catalyst-backed event tape and re-invokes the tool via `runner._registry.tool_executor` — no LLM, no workflow. Use it to re-check what a single tool returns against current state.
+- `/replay <instance_id> <seq>` slash command reads a `start_tool_calling` event off the Diagrid-backed event tape and re-invokes the tool via `runner._registry.tool_executor` — no LLM, no workflow. Use it to re-check what a single tool returns against current state.
 
 **HolmesGPT configuration** — `holmes-app/holmes_config.yaml`:
 - Built-in toolsets enabled: `kubernetes/core`, `argocd/core`, `prometheus/metrics`, plus a `bash` allowlist for read-only `argocd app *` (the fallback when `ARGOCD_AUTH_TOKEN` isn't exported locally).
@@ -55,18 +55,18 @@ There is no test suite, no linter config, and no build step outside the Docker i
 
 **Skills** — `holmes-app/skills/<name>/SKILL.md`. Each is a procedural runbook with a `description` in YAML frontmatter; HolmesGPT lists skills in the system prompt and fetches the matching one via `fetch_skill` when a user question aligns. The `description` is the only signal for matching — symptom terms users will actually type ("p99 latency spike", "CrashLoopBackOff") must appear there verbatim. No registration step; drop a new directory and restart.
 
-**Durability layer** — workflow state, conversation memory, and the per-instance event tape are all persisted to Catalyst managed state stores (`agent-workflow`, `agent-memory`, `agent-registry`, type `state.diagrid` — provisioned in the Catalyst project, not in-cluster). The event tape is append-only; `/replay` and the summarizer both read from it.
+**Durability layer** — workflow state, conversation memory, and the per-instance event tape are all persisted to Diagrid managed state stores (`agent-workflow`, `agent-memory`, `agent-registry`, type `state.diagrid` — provisioned in the Diagrid project, not in-cluster). The event tape is append-only; `/replay` and the summarizer both read from it.
 
-**LLM credentials are split intentionally.** HolmesGPT itself uses LiteLLM with env-var credentials (`OPENAI_API_KEY`, `MODEL`). The Catalyst `llm-provider` conversation component is kept for non-investigation flows (e.g. the post-investigation summarizer in `app_holmes.py` is on the LiteLLM path today, but future input guards / embeddings will use `DaprChatClient`). Don't unify these — the split is a deliberate decision.
+**LLM credentials are split intentionally.** HolmesGPT itself uses LiteLLM with env-var credentials (`OPENAI_API_KEY`, `MODEL`). The Diagrid `llm-provider` conversation component is kept for non-investigation flows (e.g. the post-investigation summarizer in `app_holmes.py` is on the LiteLLM path today, but future input guards / embeddings will use `DaprChatClient`). Don't unify these — the split is a deliberate decision.
 
 ## Kubernetes deployment
 
 Step-by-step is in the README. Notable non-obvious points:
 
-- **No in-cluster Dapr, no MongoDB.** State stores are Catalyst-managed (`state.diagrid`), provisioned in the project and referenced by name (`agent-workflow`/`agent-memory`/`agent-registry`); the cluster only runs the app + demo services.
-- `sre-agent-secrets` is a regular K8s Secret (not a Catalyst/Dapr secret reference) — the investigator pod consumes it via `envFrom`. Keys: `DAPR_API_TOKEN` (the App ID's `diagrid://…` Catalyst token), `OPENAI_API_KEY`, optionally `GITHUB_TOKEN`, `ARGOCD_TOKEN`, `ARGOCD_SERVER` (host:port only, **no scheme**), `ARGOCD_OPTS` (must include `--grpc-web --insecure` for self-signed cluster ArgoCD), `YUGABYTEDB_URL`, `YUGABYTEDB_RO_PASSWORD`.
+- **No in-cluster Dapr, no MongoDB.** State stores are Diagrid-managed (`state.diagrid`), provisioned in the project and referenced by name (`agent-workflow`/`agent-memory`/`agent-registry`); the cluster only runs the app + demo services.
+- `sre-agent-secrets` is a regular K8s Secret (not a Catalyst/Dapr secret reference) — the investigator pod consumes it via `envFrom`. Keys: `DAPR_API_TOKEN` (the App ID's `diagrid://…` Diagrid token), `OPENAI_API_KEY`, optionally `GITHUB_TOKEN`, `ARGOCD_TOKEN`, `ARGOCD_SERVER` (host:port only, **no scheme**), `ARGOCD_OPTS` (must include `--grpc-web --insecure` for self-signed cluster ArgoCD), `YUGABYTEDB_URL`, `YUGABYTEDB_RO_PASSWORD`.
 - The YugabyteDB MCP image is **custom-built** — `scripts/build-yugabytedb-mcp.sh` clones upstream and builds it for `linux/amd64`, adding `psycopg[binary]` (the slim base has no libpq, so the server crashes at import without it). No source patch is applied: upstream moved to the standalone `fastmcp` package and no longer needs the old DNS-rebinding workaround.
-- Components are provisioned in the Catalyst project (`diagrid appid create` + `diagrid component list`), **not** applied as in-cluster CRDs. Deploy via the root `Makefile`: `make all` (full multi-namespace bring-up), or `make app`/`make yb`/`make pulsar` to upgrade one component (each is its own Helm release in `charts/`); `make help` lists targets and `charts/README.md` has the layout. The non-K8s pre-flight (Catalyst App ID, secrets in the `holmes`+`yugabyte` namespaces, ArgoCD token) is `deploy/bootstrap.sh`, wrapped by `make bootstrap`/`make argocd-token`.
+- Components are provisioned in the Diagrid project (`diagrid appid create` + `diagrid component list`), **not** applied as in-cluster CRDs. Deploy via the root `Makefile`: `make all` (full multi-namespace bring-up), or `make app`/`make yb`/`make pulsar` to upgrade one component (each is its own Helm release in `charts/`); `make help` lists targets and `charts/README.md` has the layout. The non-K8s pre-flight (Diagrid App ID, secrets in the `holmes`+`yugabyte` namespaces, ArgoCD token) is `deploy/bootstrap.sh`, wrapped by `make bootstrap`/`make argocd-token`.
 
 ## Known upstream issues (don't try to "fix" these here)
 

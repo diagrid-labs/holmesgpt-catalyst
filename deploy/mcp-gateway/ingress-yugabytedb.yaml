@@ -10,7 +10,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/auth-type: basic
     nginx.ingress.kubernetes.io/auth-secret: mcp-basic-auth
-    nginx.ingress.kubernetes.io/auth-realm: "Catalyst MCP"
+    nginx.ingress.kubernetes.io/auth-realm: "Diagrid MCP"
 spec:
   ingressClassName: nginx
   tls:
